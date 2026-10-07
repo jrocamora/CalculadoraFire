@@ -1,0 +1,6 @@
+{
+  "name": "Calculadora FIRE Pro - Independència Financera",
+  "description": "Calculadora FIRE interactiva i bidireccional amb gràfics, taxa de retirada segura (SWR), escenaris macroeconòmics i fiscalitat detallada de Catalunya, Irlanda i Andorra.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

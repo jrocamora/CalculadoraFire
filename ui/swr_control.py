@@ -17,26 +17,26 @@ def render_swr_control(
 
     st.markdown(
         f"""
-        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 12px; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 14px;">
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div style="
-                    background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.25);
-                    color: #f59e0b; padding: 8px; border-radius: 12px; font-size: 1.1rem;
+                    background: #fffbeb; border: 1px solid #fde68a;
+                    color: #d97706; padding: 8px; border-radius: 12px; font-size: 1.1rem;
                 ">🛡️</div>
                 <div>
-                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #ffffff;">
+                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">
                         {t('swrTitle', lang)}
                     </h3>
-                    <p style="margin: 2px 0 0 0; font-size: 0.74rem; color: #94a3b8;">
+                    <p style="margin: 2px 0 0 0; font-size: 0.74rem; color: #64748b;">
                         {t('swrSubtitle', lang)}
                     </p>
                 </div>
             </div>
             <div style="text-align: right;">
-                <span style="font-size: 1.5rem; font-weight: 900; color: #f59e0b; letter-spacing: -0.02em;">
+                <span style="font-size: 1.5rem; font-weight: 900; color: #d97706; letter-spacing: -0.02em;">
                     {current_swr:.1f}%
                 </span>
-                <span style="display: block; font-size: 0.72rem; color: #94a3b8; font-family: monospace;">
+                <span style="display: block; font-size: 0.72rem; color: #64748b; font-family: monospace;">
                     {current_multiplier:.1f}x {t('swrAnnualExpenses', lang)}
                 </span>
             </div>
@@ -117,21 +117,21 @@ def render_swr_control(
     st.markdown(
         f"""
         <div style="
-            background: rgba(15, 23, 42, 0.7);
-            border: 1px solid rgba(245, 158, 11, 0.25);
+            background: #fffbeb;
+            border: 1px solid #fde68a;
             border-radius: 12px;
             padding: 12px 14px;
             margin-top: 10px;
         ">
             <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
-                <span style="font-size: 0.76rem; font-weight: 800; color: #fbbf24;">
+                <span style="font-size: 0.76rem; font-weight: 800; color: #b45309;">
                     🛡️ {active_preset_badge}
                 </span>
-                <span style="font-size: 0.72rem; color: #94a3b8; font-family: monospace;">
+                <span style="font-size: 0.72rem; color: #78350f; font-family: monospace;">
                     ({current_multiplier:.1f}x expenses)
                 </span>
             </div>
-            <div style="font-size: 0.76rem; color: #e2e8f0; line-height: 1.5;">
+            <div style="font-size: 0.76rem; color: #78350f; line-height: 1.5;">
                 {active_preset_desc}
             </div>
         </div>
@@ -144,7 +144,7 @@ def render_swr_control(
         for p in presets:
             st.markdown(
                 f"**{p['rate']:.1f}% — {p['badge']} ({p['mul']})**  \n"
-                f"<span style='color: #cbd5e1; font-size: 0.78rem;'>{p['desc']}</span>",
+                f"<span style='color: #475569; font-size: 0.78rem;'>{p['desc']}</span>",
                 unsafe_allow_html=True,
             )
 

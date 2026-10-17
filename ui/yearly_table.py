@@ -21,17 +21,17 @@ def render_yearly_table(
 
     st.markdown(
         f"""
-        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 12px; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 14px;">
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div style="
-                    background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.25);
-                    color: #cbd5e1; padding: 8px; border-radius: 12px; font-size: 1.1rem;
+                    background: #f1f5f9; border: 1px solid #cbd5e1;
+                    color: #475569; padding: 8px; border-radius: 12px; font-size: 1.1rem;
                 ">📋</div>
                 <div>
-                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #ffffff;">
+                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">
                         {t('tableTitle', lang)}
                     </h3>
-                    <p style="margin: 2px 0 0 0; font-size: 0.74rem; color: #94a3b8;">
+                    <p style="margin: 2px 0 0 0; font-size: 0.74rem; color: #64748b;">
                         {t('tableSubtitle', lang)}
                     </p>
                 </div>

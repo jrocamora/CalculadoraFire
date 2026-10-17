@@ -14,6 +14,7 @@ from typing import Literal, Optional
 CountryCode = Literal["CAT", "IE", "AD"]
 CalculationMode = Literal["target_spending", "current_portfolio"]
 AssetCategory = Literal[
+    "budget_2027_account",
     "index_funds",
     "individual_stocks",
     "cash_deposits",

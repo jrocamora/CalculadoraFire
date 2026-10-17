@@ -36,10 +36,10 @@ def render_bidirectional_inputs(
         f"""
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
             <div>
-                <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: #ffffff;">
+                <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: #0f172a;">
                     {t('inputModeTitle', lang)}
                 </h3>
-                <p style="margin: 2px 0 0 0; font-size: 0.75rem; color: #94a3b8;">
+                <p style="margin: 2px 0 0 0; font-size: 0.75rem; color: #64748b;">
                     {t('inputModeSubtitle', lang)}
                 </p>
             </div>
@@ -71,16 +71,16 @@ def render_bidirectional_inputs(
         st.markdown(
             f"""
             <div style="
-                background: rgba(245, 158, 11, 0.05);
-                border: 1px solid rgba(245, 158, 11, 0.2);
+                background: #fffbeb;
+                border: 1px solid #fde68a;
                 border-radius: 14px;
                 padding: 16px;
                 margin: 12px 0;
             ">
-                <div style="font-size: 0.82rem; font-weight: 700; color: #fbbf24; margin-bottom: 4px;">
+                <div style="font-size: 0.82rem; font-weight: 700; color: #b45309; margin-bottom: 4px;">
                     {t('targetDisposableQuestion', lang)}
                 </div>
-                <div style="font-size: 0.74rem; color: #cbd5e1; margin-bottom: 12px;">
+                <div style="font-size: 0.74rem; color: #78350f; margin-bottom: 12px;">
                     {t('targetDisposableHelp', lang)}
                 </div>
             </div>
@@ -125,6 +125,7 @@ def render_bidirectional_inputs(
         st.caption(t("portfolioAssetSubtitle", lang))
 
         category_icons = {
+            "budget_2027_account": "🌟 " + t("categoryBudget2027Account", lang),
             "index_funds": "📈 " + t("categoryIndexFunds", lang),
             "individual_stocks": "🏢 " + t("categoryIndividualStocks", lang),
             "cash_deposits": "💶 " + t("categoryCashDeposits", lang),

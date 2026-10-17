@@ -33,24 +33,24 @@ def render_tax_breakdown_card(
 
     st.markdown(
         f"""
-        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 12px; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 14px;">
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div style="
-                    background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.25);
-                    color: #10b981; padding: 8px; border-radius: 12px; font-size: 1.1rem;
+                    background: #f0fdf4; border: 1px solid #bbf7d0;
+                    color: #059669; padding: 8px; border-radius: 12px; font-size: 1.1rem;
                 ">🧾</div>
                 <div>
-                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #ffffff;">
+                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">
                         {t('breakdownTitle', lang)}
                     </h3>
-                    <p style="margin: 2px 0 0 0; font-size: 0.74rem; color: #94a3b8;">
+                    <p style="margin: 2px 0 0 0; font-size: 0.74rem; color: #64748b;">
                         {t('breakdownSubtitle', lang)}
                     </p>
                 </div>
             </div>
             <div style="text-align: right;">
-                <span style="font-size: 0.72rem; color: #94a3b8; display: block;">{t('grossAnnualWithdrawal', lang)}</span>
-                <span style="font-size: 1.15rem; font-weight: 800; color: #ffffff; font-family: monospace;">
+                <span style="font-size: 0.72rem; color: #64748b; display: block;">{t('grossAnnualWithdrawal', lang)}</span>
+                <span style="font-size: 1.15rem; font-weight: 800; color: #0f172a; font-family: monospace;">
                     {annual_gross:,.0f} €{t('perYear', lang)}
                 </span>
             </div>
@@ -64,19 +64,19 @@ def render_tax_breakdown_card(
         f"""
         <div style="margin: 12px 0;">
             <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: 700; margin-bottom: 6px;">
-                <span style="color: #34d399;">
+                <span style="color: #059669;">
                     🪙 {t('netInPocket', lang)} {net_ratio:.1f}% ({annual_net:,.0f} €)
                 </span>
-                <span style="color: #fb7185;">
+                <span style="color: #e11d48;">
                     📉 {t('taxesPaid', lang)} {tax_ratio:.1f}% ({annual_tax:,.0f} €)
                 </span>
             </div>
             <div style="
-                width: 100%; height: 16px; background: rgba(15, 23, 42, 0.8);
-                border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 9999px;
+                width: 100%; height: 16px; background: #e2e8f0;
+                border: 1px solid #cbd5e1; border-radius: 9999px;
                 overflow: hidden; display: flex;
             ">
-                <div style="width: {net_ratio}%; height: 100%; background: linear-gradient(90deg, #10b981, #14b8a6);"></div>
+                <div style="width: {net_ratio}%; height: 100%; background: linear-gradient(90deg, #10b981, #059669);"></div>
                 <div style="width: {tax_ratio}%; height: 100%; background: linear-gradient(90deg, #f43f5e, #e11d48);"></div>
             </div>
         </div>
@@ -88,10 +88,10 @@ def render_tax_breakdown_card(
     st.markdown(
         f"""
         <div style="
-            background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255, 255, 255, 0.08);
+            background: #f8fafc; border: 1px solid #e2e8f0;
             border-radius: 12px; padding: 14px; margin-top: 10px;
         ">
-            <div style="font-size: 0.78rem; color: #cbd5e1; line-height: 1.5; margin-bottom: 4px;">
+            <div style="font-size: 0.78rem; color: #334155; line-height: 1.5; margin-bottom: 4px;">
                 ℹ️ {tax_comp.explanation}
             </div>
         </div>

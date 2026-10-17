@@ -20,27 +20,27 @@ def render_macro_scenario_selector(
 
     st.markdown(
         f"""
-        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 12px; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 14px;">
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div style="
-                    background: rgba(168, 85, 247, 0.12); border: 1px solid rgba(168, 85, 247, 0.25);
-                    color: #a855f7; padding: 8px; border-radius: 12px; font-size: 1.1rem;
+                    background: #faf5ff; border: 1px solid #e9d5ff;
+                    color: #7e22ce; padding: 8px; border-radius: 12px; font-size: 1.1rem;
                 ">📊</div>
                 <div>
-                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #ffffff;">
+                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">
                         {t('macroTitle', lang)}
                     </h3>
-                    <p style="margin: 2px 0 0 0; font-size: 0.74rem; color: #94a3b8;">
+                    <p style="margin: 2px 0 0 0; font-size: 0.74rem; color: #64748b;">
                         {t('macroSubtitle', lang)}
                     </p>
                 </div>
             </div>
             <div style="
-                background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.1);
-                border-radius: 10px; padding: 6px 12px; font-size: 0.75rem; color: #cbd5e1;
+                background: #faf5ff; border: 1px solid #e9d5ff;
+                border-radius: 10px; padding: 6px 12px; font-size: 0.75rem; color: #475569;
             ">
                 <span>{t('realReturnLabel', lang)}</span>
-                <strong style="color: {'#34d399' if real_return >= 4.5 else '#38bdf8' if real_return >= 2.5 else '#f59e0b'}; font-size: 0.95rem; margin-left: 6px;">
+                <strong style="color: {'#047857' if real_return >= 4.5 else '#0369a1' if real_return >= 2.5 else '#b45309'}; font-size: 0.95rem; margin-left: 6px;">
                     {real_return:.2f}%
                 </strong>
             </div>

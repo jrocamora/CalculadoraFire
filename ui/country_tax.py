@@ -17,23 +17,23 @@ def render_country_tax_selector(
     """Renderitza el selector de fiscalitat irlandesa amb suport per al Pressupost 2027."""
     st.markdown(
         f"""
-        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 12px; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 14px;">
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div style="
-                    background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.25);
-                    color: #10b981; padding: 8px; border-radius: 12px; font-size: 1.1rem;
+                    background: #f0fdf4; border: 1px solid #bbf7d0;
+                    color: #059669; padding: 8px; border-radius: 12px; font-size: 1.1rem;
                 ">🇮🇪</div>
                 <div>
-                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #ffffff;">
+                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">
                         {t('countryTaxTitle', lang)}
                     </h3>
-                    <p style="margin: 2px 0 0 0; font-size: 0.74rem; color: #94a3b8;">
+                    <p style="margin: 2px 0 0 0; font-size: 0.74rem; color: #64748b;">
                         {t('countryTaxSubtitle', lang)}
                     </p>
                 </div>
             </div>
             <span style="
-                background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);
+                background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0;
                 border-radius: 9999px; padding: 3px 8px; font-size: 0.70rem; font-weight: 700;
             ">
                 Budget 2027 Verified
@@ -86,17 +86,17 @@ def render_country_tax_selector(
         st.markdown(
             f"""
             <div style="
-                background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(6, 182, 212, 0.08) 100%);
-                border: 1px solid rgba(16, 185, 129, 0.35);
+                background: linear-gradient(135deg, #f0fdf4 0%, #ecfeff 100%);
+                border: 1px solid #a7f3d0;
                 border-radius: 12px; padding: 14px; margin: 10px 0;
             ">
-                <div style="font-size: 0.82rem; font-weight: 800; color: #34d399; margin-bottom: 4px;">
+                <div style="font-size: 0.82rem; font-weight: 800; color: #047857; margin-bottom: 4px;">
                     {t('irelandBudget2027Account', lang)}
                 </div>
-                <div style="font-size: 0.74rem; color: #e2e8f0; line-height: 1.5; margin-bottom: 10px;">
+                <div style="font-size: 0.74rem; color: #166534; line-height: 1.5; margin-bottom: 10px;">
                     {t('irelandBudget2027AccountSub', lang)}
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.72rem; color: #94a3b8; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.72rem; color: #334155; border-top: 1px solid #bbf7d0; padding-top: 8px;">
                     <div>• <strong>€50,000:</strong> 0% Tax (Tax-Free Allowance)</div>
                     <div>• <strong>Balance >€50k:</strong> Flat 1% Annual Tax</div>
                     <div>• <strong>Withdrawals:</strong> 0% CGT / 0% Exit Tax</div>
@@ -131,14 +131,14 @@ def render_country_tax_selector(
         st.markdown(
             f"""
             <div style="
-                background: rgba(245, 158, 11, 0.06);
-                border: 1px solid rgba(245, 158, 11, 0.25);
+                background: #fffbeb;
+                border: 1px solid #fde68a;
                 border-radius: 12px; padding: 14px; margin: 10px 0;
             ">
-                <div style="font-size: 0.82rem; font-weight: 800; color: #fbbf24; margin-bottom: 4px;">
+                <div style="font-size: 0.82rem; font-weight: 800; color: #b45309; margin-bottom: 4px;">
                     {t('irelandEtfsExitTax', lang)}
                 </div>
-                <div style="font-size: 0.74rem; color: #cbd5e1; line-height: 1.5; margin-bottom: 8px;">
+                <div style="font-size: 0.74rem; color: #78350f; line-height: 1.5; margin-bottom: 8px;">
                     {t('irelandEtfsExitTaxSub', lang)}
                 </div>
             </div>
@@ -185,14 +185,14 @@ def render_country_tax_selector(
         st.markdown(
             f"""
             <div style="
-                background: rgba(59, 130, 246, 0.06);
-                border: 1px solid rgba(59, 130, 246, 0.25);
+                background: #eff6ff;
+                border: 1px solid #bfdbfe;
                 border-radius: 12px; padding: 14px; margin: 10px 0;
             ">
-                <div style="font-size: 0.82rem; font-weight: 800; color: #60a5fa; margin-bottom: 4px;">
+                <div style="font-size: 0.82rem; font-weight: 800; color: #1d4ed8; margin-bottom: 4px;">
                     {t('irelandIndividualShares', lang)}
                 </div>
-                <div style="font-size: 0.74rem; color: #cbd5e1; line-height: 1.5;">
+                <div style="font-size: 0.74rem; color: #1e40af; line-height: 1.5;">
                     {t('irelandIndividualSharesSub', lang)}
                 </div>
             </div>

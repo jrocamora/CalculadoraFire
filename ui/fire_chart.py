@@ -22,17 +22,17 @@ def render_fire_chart(
 
     st.markdown(
         f"""
-        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 12px; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 14px;">
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div style="
-                    background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.25);
-                    color: #f59e0b; padding: 8px; border-radius: 12px; font-size: 1.1rem;
+                    background: #fffbeb; border: 1px solid #fde68a;
+                    color: #d97706; padding: 8px; border-radius: 12px; font-size: 1.1rem;
                 ">📈</div>
                 <div>
-                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #ffffff;">
+                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">
                         {t('chartTitle', lang)}
                     </h3>
-                    <p style="margin: 2px 0 0 0; font-size: 0.74rem; color: #94a3b8;">
+                    <p style="margin: 2px 0 0 0; font-size: 0.74rem; color: #64748b;">
                         {t('chartSubtitle', lang)}
                     </p>
                 </div>
@@ -141,22 +141,24 @@ def render_fire_chart(
             annotation_font=dict(color="#38bdf8", size=10),
         )
 
-    # Configuració de disseny fosc premium
+    # Light theme layout styling
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(17, 24, 39, 0.6)",
-        font=dict(family="Plus Jakarta Sans, sans-serif", color="#e2e8f0"),
+        plot_bgcolor="#ffffff",
+        font=dict(family="Plus Jakarta Sans, sans-serif", color="#0f172a"),
         xaxis=dict(
-            title=dict(text=t("currentAgeLabel", lang), font=dict(size=12, color="#94a3b8")),
-            gridcolor="rgba(255, 255, 255, 0.06)",
-            zerolinecolor="rgba(255, 255, 255, 0.1)",
+            title=dict(text=t("currentAgeLabel", lang), font=dict(size=12, color="#475569")),
+            gridcolor="#f1f5f9",
+            zerolinecolor="#e2e8f0",
+            tickfont=dict(color="#64748b"),
             tickmode="linear",
             dtick=5,
         ),
         yaxis=dict(
-            title=dict(text="Portfolio (€)" if lang == "en" else "Patrimoni (€)", font=dict(size=12, color="#94a3b8")),
-            gridcolor="rgba(255, 255, 255, 0.06)",
-            zerolinecolor="rgba(255, 255, 255, 0.1)",
+            title=dict(text="Portfolio (€)" if lang == "en" else "Patrimoni (€)", font=dict(size=12, color="#475569")),
+            gridcolor="#f1f5f9",
+            zerolinecolor="#e2e8f0",
+            tickfont=dict(color="#64748b"),
             tickformat=",.0f",
         ),
         legend=dict(
@@ -165,9 +167,9 @@ def render_fire_chart(
             y=1.02,
             xanchor="right",
             x=1,
-            font=dict(size=11),
-            bgcolor="rgba(15, 23, 42, 0.7)",
-            bordercolor="rgba(255, 255, 255, 0.1)",
+            font=dict(size=11, color="#334155"),
+            bgcolor="#ffffff",
+            bordercolor="#e2e8f0",
             borderwidth=1,
         ),
         margin=dict(l=40, r=20, t=40, b=40),

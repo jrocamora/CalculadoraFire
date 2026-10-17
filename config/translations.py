@@ -68,12 +68,25 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "years": "years",
 
         # Asset categories
+        "categoryBudget2027Account": "New Investment Account (Budget 2027)",
         "categoryIndexFunds": "Global Index Funds / UCITS ETFs",
         "categoryIndividualStocks": "Individual Equities & Shares",
         "categoryCashDeposits": "Cash Deposits & Savings Accounts",
         "categoryPrivatePension": "Private Pension (PRSA / Workplace)",
         "categoryMyFutureFund": "MyFutureFund (Auto-Enrolment)",
         "categoryRealEstateOther": "Real Estate / Alternatives",
+
+        # Sharing, Export & Privacy
+        "sharePlan": "Share Plan",
+        "sharePlanDesc": "Share your exact numbers via a customized link or export your plan file. All calculations run 100% locally.",
+        "shareUrlLabel": "Shareable Link (All parameters are encoded directly in the URL):",
+        "exportJson": "Save / Export (JSON)",
+        "importJson": "Load Plan (JSON)",
+        "planLoadedSuccess": "✓ Plan successfully loaded from link!",
+        "privacyBadge": "🔒 100% Client-Side Privacy",
+        "privacyBadgeSub": "No server storage • Zero data transmitted",
+        "privacyGuaranteeTitle": "100% Client-Side Privacy Guarantee",
+        "privacyGuaranteeText": "All financial projections and tax calculations run locally on your machine. Zero data is sent to, logged by, or stored on any server. When sharing, your numbers are encoded directly into the URL parameters.",
 
         # Irish Pensions & Retirement Pillars
         "pensionSectionTitle": "Irish Pension Pillars & Auto-Enrolment",
@@ -296,12 +309,25 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "years": "anys",
 
         # Asset categories
+        "categoryBudget2027Account": "Nou Compte d'Inversió (Pressupost 2027)",
         "categoryIndexFunds": "Fons Indexats / ETFs UCITS",
         "categoryIndividualStocks": "Accions Individuals (Borsa)",
         "categoryCashDeposits": "Efectiu & Dipòsits",
         "categoryPrivatePension": "Pla de Pensions Privat (PRSA / Empresa)",
         "categoryMyFutureFund": "MyFutureFund (Auto-Enrolment Irlanda)",
         "categoryRealEstateOther": "Immobiliari / Altres",
+
+        # Sharing, Export & Privacy
+        "sharePlan": "Compartir Pla",
+        "sharePlanDesc": "Comparteix els teus números amb un enllaç o descarrega el fitxer del pla. Càlculs 100% locals.",
+        "shareUrlLabel": "Enllaç per compartir (tots els números estan codificats a la URL):",
+        "exportJson": "Desar / Exportar (JSON)",
+        "importJson": "Carregar Pla (JSON)",
+        "planLoadedSuccess": "✓ Pla carregat correctament des de l'enllaç!",
+        "privacyBadge": "🔒 Privadesa 100% Local (Client-Side)",
+        "privacyBadgeSub": "Sense emmagatzematge al servidor",
+        "privacyGuaranteeTitle": "Garantia de Privadesa 100% Client-Side",
+        "privacyGuaranteeText": "Totes les simulacions i càlculs fiscals s'executen directament al teu navegador. Cap dada s'envia a cap servidor ni s'emmagatzema en bases de dades.",
 
         # Irish Pensions & Retirement Pillars
         "pensionSectionTitle": "Pilars de Pensions d'Irlanda & Auto-Enrolment",

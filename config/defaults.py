@@ -34,12 +34,20 @@ def get_initial_pension_settings() -> PensionSettings:
 def get_initial_assets() -> list[PortfolioAsset]:
     return [
         PortfolioAsset(
+            id="asset-0",
+            category="budget_2027_account",
+            name="New Investment Account (Budget 2027)",
+            current_amount=50000.0,
+            expected_return_annual=7.0,
+            cost_basis=50000.0,
+        ),
+        PortfolioAsset(
             id="asset-1",
             category="index_funds",
             name="Global Index Funds / UCITS ETFs",
-            current_amount=65000.0,
+            current_amount=25000.0,
             expected_return_annual=7.0,
-            cost_basis=45000.0,
+            cost_basis=20000.0,
         ),
         PortfolioAsset(
             id="asset-2",

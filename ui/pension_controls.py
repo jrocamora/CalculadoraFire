@@ -18,23 +18,23 @@ def render_pension_controls(
     """Renderitza el configurador avançat de pensions irlandeses."""
     st.markdown(
         f"""
-        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 12px; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 14px;">
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div style="
-                    background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.25);
-                    color: #10b981; padding: 8px; border-radius: 12px; font-size: 1.1rem;
+                    background: #f0fdf4; border: 1px solid #bbf7d0;
+                    color: #059669; padding: 8px; border-radius: 12px; font-size: 1.1rem;
                 ">🛡️</div>
                 <div>
-                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #ffffff;">
+                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">
                         {t('pensionSectionTitle', lang)}
                     </h3>
-                    <p style="margin: 2px 0 0 0; font-size: 0.74rem; color: #94a3b8;">
+                    <p style="margin: 2px 0 0 0; font-size: 0.74rem; color: #64748b;">
                         {t('pensionSectionSubtitle', lang)}
                     </p>
                 </div>
             </div>
             <span style="
-                background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);
+                background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0;
                 border-radius: 9999px; padding: 3px 8px; font-size: 0.70rem; font-weight: 700;
             ">
                 Multi-Pillar Irish FIRE
@@ -157,19 +157,19 @@ def render_pension_controls(
         st.markdown(
             f"""
             <div style="
-                background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(6, 182, 212, 0.08) 100%);
-                border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px;
+                background: linear-gradient(135deg, #f0fdf4 0%, #ecfeff 100%);
+                border: 1px solid #a7f3d0; border-radius: 12px;
                 padding: 12px 14px; margin: 10px 0;
             ">
-                <div style="font-size: 0.74rem; font-weight: 800; color: #34d399; margin-bottom: 6px;">
+                <div style="font-size: 0.74rem; font-weight: 800; color: #047857; margin-bottom: 6px;">
                     {t('myFutureFundTotalMonthlyLabel', lang)} <strong>{total_mff_inflow:,.0f} € / month</strong>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; font-size: 0.70rem; color: #cbd5e1;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; font-size: 0.70rem; color: #334155;">
                     <div>• You save: <strong>{new_mff_emp:,.0f} €</strong></div>
-                    <div>• Employer match: <strong style="color: #38bdf8;">+{match_employer:,.0f} €</strong></div>
-                    <div>• State top-up: <strong style="color: #a78bfa;">+{topup_state:,.0f} €</strong></div>
+                    <div>• Employer match: <strong style="color: #0284c7;">+{match_employer:,.0f} €</strong></div>
+                    <div>• State top-up: <strong style="color: #7c3aed;">+{topup_state:,.0f} €</strong></div>
                 </div>
-                <div style="font-size: 0.68rem; color: #94a3b8; margin-top: 6px;">
+                <div style="font-size: 0.68rem; color: #64748b; margin-top: 6px;">
                     🎯 For every €1.00 you contribute, €2.33 is deposited into your MyFutureFund pot.
                 </div>
             </div>
@@ -192,10 +192,10 @@ def render_pension_controls(
             st.markdown(
                 f"""
                 <div style="padding-top: 4px;">
-                    <div style="font-size: 0.78rem; font-weight: 600; color: #94a3b8;">
+                    <div style="font-size: 0.78rem; font-weight: 600; color: #64748b;">
                         {t('myFutureFundAccessAgeLabel', lang)}
                     </div>
-                    <div style="font-size: 1.15rem; font-weight: 800; color: #ffffff; margin-top: 4px;">
+                    <div style="font-size: 1.15rem; font-weight: 800; color: #0f172a; margin-top: 4px;">
                         Age 66 (State Pension)
                     </div>
                 </div>
@@ -207,7 +207,7 @@ def render_pension_controls(
     with tab_bridge:
         st.markdown(
             f"""
-            <div style="font-size: 0.76rem; color: #e2e8f0; line-height: 1.6; margin-bottom: 12px;">
+            <div style="font-size: 0.76rem; color: #334155; line-height: 1.6; margin-bottom: 12px;">
                 {t('pensionBridgeStrategyDesc', lang)}
             </div>
             """,

@@ -42,6 +42,11 @@ def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult
     bridge_assets = [a for a in assets if a.category not in ("private_pension", "my_future_fund")]
     bridge_capital_initial = sum(float(a.current_amount or 0.0) for a in bridge_assets)
 
+    # Distingir els actius en el Nou Compte d'Inversió (Budget 2027) de la resta de la cartera líquida
+    b27_assets = [a for a in bridge_assets if a.category == "budget_2027_account"]
+    b27_initial = sum(float(a.current_amount or 0.0) for a in b27_assets)
+    other_bridge_initial = max(0.0, bridge_capital_initial - b27_initial)
+
     # Identificar fons de pensions des d'assets o des de pension_settings
     asset_p_pension = next((a for a in assets if a.category == "private_pension"), None)
     asset_mff = next((a for a in assets if a.category == "my_future_fund"), None)
@@ -133,7 +138,9 @@ def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult
 
     # 2. Simulació Any a Any fins a l'esperança de vida
     projections: list[YearProjection] = []
-    bridge_pot = bridge_capital_initial
+    b27_pot = b27_initial
+    other_bridge_pot = other_bridge_initial
+    bridge_pot = b27_pot + other_bridge_pot
     p_pension_pot = private_pension_initial
     mff_pot = mff_initial
 
@@ -157,7 +164,7 @@ def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult
     total_years = max(1, life_expectancy - current_age)
     fire_achieved_year_index = -1
     retirement_age_actual = target_retirement_age
-    deemed_disposal_basis = bridge_capital_initial
+    deemed_disposal_basis = other_bridge_initial
 
     # Determinar any FIRE si estem en mode target_spending
     if mode == "target_spending" and not is_already_fire:
@@ -209,7 +216,7 @@ def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult
         )
 
         inflation_factor = (1.0 + inflation_rate) ** i
-        start_of_period_portfolio = max(0.0, bridge_pot + p_pension_pot + mff_pot)
+        start_of_period_portfolio = max(0.0, b27_pot + other_bridge_pot + p_pension_pot + mff_pot)
 
         active_tax_settings: TaxSettings = copy.copy(tax_settings)
 
@@ -245,32 +252,31 @@ def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult
             annual_p_contrib *= 1.0 + (annual_savings_increase_rate or 0.0) / 100.0
             annual_mff_contrib *= 1.0 + (annual_savings_increase_rate or 0.0) / 100.0
 
-            # Rendiment sobre la cartera líquida Bridge
-            bridge_pot = bridge_pot * (1.0 + current_return_rate) + contrib_bridge
+            # 1. Rendiment sobre el Nou Compte d'Inversió (Budget 2027)
+            if b27_pot > 0:
+                b27_pot *= 1.0 + current_return_rate
+                # Regla Pressupost 2027: 0% fins a 50.000 €, 1% sobre l'excés
+                if i > 0:
+                    threshold = getattr(active_tax_settings, "ireland_investment_account_threshold", 50000.0)
+                    account_rate = max(
+                        0.0,
+                        (getattr(active_tax_settings, "ireland_investment_account_rate", 1.0)
+                         + (active_tax_settings.tax_reform_change_rate or 0.0)) / 100.0,
+                    )
+                    taxable_above = max(0.0, b27_pot - threshold)
+                    if taxable_above > 0:
+                        ireland_account_tax_paid = taxable_above * account_rate
+                        b27_pot = max(0.0, b27_pot - ireland_account_tax_paid)
+                        tax_paid_this_year += ireland_account_tax_paid
 
-            # Fiscalitat sobre la cartera líquida Bridge a Irlanda (Pressupost 2027)
+            # 2. Rendiment sobre la resta de la cartera líquida (ETFs / Accions)
+            other_bridge_pot = other_bridge_pot * (1.0 + current_return_rate) + contrib_bridge
+
+            # Irlanda Deemed Disposal sobre ETFs de la cartera líquida fora del compte 2027
             if (
                 active_tax_settings.country == "IE"
-                and active_tax_settings.ireland_asset_type == "budget_2027_account"
-                and i > 0
-            ):
-                threshold = getattr(active_tax_settings, "ireland_investment_account_threshold", 50000.0)
-                account_rate = max(
-                    0.0,
-                    (getattr(active_tax_settings, "ireland_investment_account_rate", 1.0)
-                     + (active_tax_settings.tax_reform_change_rate or 0.0)) / 100.0,
-                )
-                taxable_above = max(0.0, bridge_pot - threshold)
-                if taxable_above > 0:
-                    ireland_account_tax_paid = taxable_above * account_rate
-                    bridge_pot = max(0.0, bridge_pot - ireland_account_tax_paid)
-                    tax_paid_this_year += ireland_account_tax_paid
-
-            # Irlanda Deemed Disposal sobre ETFs de la cartera líquida
-            if (
-                active_tax_settings.country == "IE"
-                and active_tax_settings.ireland_asset_type == "etf_exit_tax"
                 and active_tax_settings.ireland_simulate_deemed_disposal
+                and other_bridge_pot > 0
                 and i > 0
             ):
                 is_rolling = (
@@ -278,17 +284,19 @@ def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult
                 ) == "staggered_rolling_eighth"
                 should_apply = True if is_rolling else (i % 8 == 0)
                 if should_apply:
-                    unrealized_gains = max(0.0, bridge_pot - deemed_disposal_basis)
+                    unrealized_gains = max(0.0, other_bridge_pot - deemed_disposal_basis)
                     if unrealized_gains > 0:
                         exit_rate = max(0.0, 0.35 + (active_tax_settings.tax_reform_change_rate or 0.0) / 100.0)
                         maturing_gain = unrealized_gains / 8.0 if is_rolling else unrealized_gains
                         deemed_disposal_tax_paid = maturing_gain * exit_rate
-                        bridge_pot = max(0.0, bridge_pot - deemed_disposal_tax_paid)
+                        other_bridge_pot = max(0.0, other_bridge_pot - deemed_disposal_tax_paid)
                         if is_rolling:
                             deemed_disposal_basis += maturing_gain
                         else:
-                            deemed_disposal_basis = bridge_pot
+                            deemed_disposal_basis = other_bridge_pot
                         tax_paid_this_year += deemed_disposal_tax_paid
+
+            bridge_pot = b27_pot + other_bridge_pot
 
             # Les PENSIONS creixen 100% LLIURES D'IMPOSTOS (exempció total irlandesa)
             if p_pension_pot > 0 or contrib_p > 0:
@@ -350,21 +358,51 @@ def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult
 
             # El romanent es retira de la Cartera Pont (Bridge)
             withdrawal_from_bridge = max(0.0, inflated_gross_withdrawal - pension_drawdown_this_year)
-            actual_bridge_withdrawal = min(bridge_pot, withdrawal_from_bridge)
-            bridge_pot = max(0.0, bridge_pot - actual_bridge_withdrawal)
 
+            # Es retira primer del Compte d'Inversió 2027 (0% Exit Tax i 0% CGT)
+            draw_b27 = min(b27_pot, withdrawal_from_bridge)
+            b27_pot = max(0.0, b27_pot - draw_b27)
+            rem_bridge_withdrawal = max(0.0, withdrawal_from_bridge - draw_b27)
+
+            # La resta es retira dels altres actius bridge (ETFs / Accions)
+            draw_other = min(other_bridge_pot, rem_bridge_withdrawal)
+            other_bridge_pot = max(0.0, other_bridge_pot - draw_other)
+
+            actual_bridge_withdrawal = draw_b27 + draw_other
+            bridge_pot = b27_pot + other_bridge_pot
             gross_withdrawal_this_year = actual_bridge_withdrawal + pension_drawdown_this_year
 
             # Càlcul d'impostos
-            tax_res = compute_annual_tax_for_withdrawal(
-                gross_withdrawal_this_year, active_tax_settings, bridge_pot, lang
+            # 1. Compte 2027: 0% en retirada; taxa de l'1% només sobre el saldo restant que superi el threshold
+            tax_b27 = 0.0
+            threshold = getattr(active_tax_settings, "ireland_investment_account_threshold", 50000.0)
+            account_rate = max(
+                0.0,
+                (getattr(active_tax_settings, "ireland_investment_account_rate", 1.0)
+                 + (active_tax_settings.tax_reform_change_rate or 0.0)) / 100.0,
             )
-            tax_paid_this_year = tax_res.total_tax
+            if b27_pot > threshold:
+                annual_charge = (b27_pot - threshold) * account_rate
+                tax_b27 += annual_charge
+                b27_pot = max(0.0, b27_pot - annual_charge)
+
+            # 2. Resta de la cartera bridge subjecta a impostos ordinaris (Exit Tax 35% / CGT 31%)
+            tax_other = 0.0
+            if draw_other > 0:
+                tax_res_other = compute_annual_tax_for_withdrawal(
+                    draw_other, active_tax_settings, other_bridge_pot, lang
+                )
+                tax_other = tax_res_other.total_tax
+
+            tax_paid_this_year = tax_b27 + tax_other
             net_disposable_this_year = max(0.0, gross_withdrawal_this_year - tax_paid_this_year)
 
             # Rendiment sobre els capitals restants
-            if bridge_pot > 0:
-                bridge_pot *= 1.0 + current_return_rate
+            if b27_pot > 0:
+                b27_pot *= 1.0 + current_return_rate
+            if other_bridge_pot > 0:
+                other_bridge_pot *= 1.0 + current_return_rate
+            bridge_pot = b27_pot + other_bridge_pot
             if p_pension_pot > 0:
                 p_pension_pot *= 1.0 + p_pension_return
             if mff_pot > 0:

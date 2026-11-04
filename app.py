@@ -88,6 +88,19 @@ def init_session_state():
 def handle_reset_defaults():
     """Resets all simulation parameters to default Irish baseline values."""
     st.query_params.clear()
+    for k in list(st.session_state.keys()):
+        if k.startswith("asset_") or k.startswith("pension_") or k in (
+            "target_monthly_income_input",
+            "target_monthly_income_slider",
+            "monthly_savings_input",
+            "annual_savings_increase_input",
+            "current_age_input",
+            "ret_age_input",
+            "life_exp_input",
+            "calc_mode_radio",
+            "swr_slider",
+        ):
+            del st.session_state[k]
     st.session_state.mode = "target_spending"
     st.session_state.current_age = 32
     st.session_state.target_retirement_age = 48
@@ -119,19 +132,16 @@ def main():
         st.success(t("planLoadedSuccess", lang))
         st.session_state.just_loaded_from_url = False
 
-    # 2. Share, Save & Privacy Bar (Collapsible with clear privacy guarantee)
-    with st.expander("🔗 Share Plan & Local Save (100% Private • No Server Data)", expanded=False):
+    # 2. Share & Save Plan
+    with st.expander("🔗 Share & Save Plan", expanded=False):
         st.markdown(
             f"""
             <div style="
-                background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px;
-                padding: 14px; margin-bottom: 14px;
+                background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+                padding: 10px 14px; margin-bottom: 14px;
             ">
-                <div style="font-size: 0.82rem; font-weight: 800; color: #166534; margin-bottom: 4px;">
-                    🛡️ {t('privacyGuaranteeTitle', lang)}
-                </div>
-                <div style="font-size: 0.74rem; color: #15803d; line-height: 1.5;">
-                    {t('privacyGuaranteeText', lang)}
+                <div style="font-size: 0.74rem; color: #475569; line-height: 1.5;">
+                    ℹ️ {t('privacyGuaranteeText', lang)}
                 </div>
             </div>
             """,
@@ -202,6 +212,32 @@ def main():
                     st.error(f"Error reading plan file: {e}")
 
     # 3. Simulation execution
+    # Ensure all models in session state are in sync with active widget values before simulation runs
+    for a in st.session_state.assets:
+        if f"asset_amount_{a.id}" in st.session_state:
+            a.current_amount = float(st.session_state[f"asset_amount_{a.id}"])
+        if f"asset_ret_{a.id}" in st.session_state:
+            a.expected_return_annual = float(st.session_state[f"asset_ret_{a.id}"])
+        if f"asset_cost_{a.id}" in st.session_state:
+            a.cost_basis = float(st.session_state[f"asset_cost_{a.id}"])
+        elif a.category in ("private_pension", "my_future_fund", "cash_deposits"):
+            a.cost_basis = float(a.current_amount)
+
+    if "monthly_savings_input" in st.session_state:
+        st.session_state.monthly_savings = float(st.session_state.monthly_savings_input)
+    if "annual_savings_increase_input" in st.session_state:
+        st.session_state.annual_savings_increase_rate = float(st.session_state.annual_savings_increase_input)
+    if "target_monthly_income_input" in st.session_state:
+        st.session_state.target_monthly_income = float(st.session_state.target_monthly_income_input)
+    if "calc_mode_radio" in st.session_state:
+        st.session_state.mode = st.session_state.calc_mode_radio
+    if "pension_state_enabled" in st.session_state:
+        st.session_state.pension_settings.state_pension_enabled = bool(st.session_state.pension_state_enabled)
+    if "pension_state_mo_input" in st.session_state:
+        st.session_state.pension_settings.state_pension_monthly_amount = float(st.session_state.pension_state_mo_input)
+    if "pension_state_age_slider" in st.session_state:
+        st.session_state.pension_settings.state_pension_access_age = int(st.session_state.pension_state_age_slider)
+
     fire_inputs = FireInputs(
         mode=st.session_state.mode,
         current_age=st.session_state.current_age,
@@ -340,13 +376,13 @@ def main():
         f"""
         <div style="text-align: center; color: #64748b; font-size: 0.72rem; padding: 16px 0 32px 0;">
             <p style="margin: 0 0 6px 0; font-weight: 700; color: #475569;">
-                🛡️ {t('footerTitle', lang)}
+                {t('footerTitle', lang)}
             </p>
             <p style="margin: 0 0 6px 0; font-size: 0.68rem; color: #64748b; max-width: 800px; margin: 0 auto;">
                 {t('footerDisclaimer', lang)}
             </p>
-            <p style="margin: 4px 0 0 0; font-size: 0.68rem; color: #059669; font-weight: 600;">
-                🔒 100% Client-Side Simulation • Zero Data Sent to Servers • Calibrated for Irish Revenue & Budget 2027
+            <p style="margin: 4px 0 0 0; font-size: 0.68rem; color: #64748b;">
+                All projections and calculations run locally • No data stored on server • Budget 2027
             </p>
         </div>
         """,

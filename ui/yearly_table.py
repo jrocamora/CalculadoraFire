@@ -82,6 +82,11 @@ def render_yearly_table(
             if p.is_retired
             else ("Accumulation" if lang == "en" else "Estalvi 📈")
         )
+        note_text = p.tax_notes or ""
+        if p.state_pension_received > 0 and "State Pension" not in note_text and "Pensió d'Estat" not in note_text:
+            sp_tag = f"🏛️ State Pension: €{round(p.state_pension_received):,}/yr" if lang == "en" else f"🏛️ Pensió d'Estat: {round(p.state_pension_received):,} €/any"
+            note_text = f"{note_text} | {sp_tag}" if note_text else sp_tag
+
         rows.append(
             {
                 t("tableColYearAge", lang): f"{p.calendar_year} ({p.age}{age_suffix})",
@@ -96,7 +101,7 @@ def render_yearly_table(
                 t("tableColNetDisposable", lang): format_num(p.net_disposable_income),
                 t("tableColEndingCapital", lang): format_num(p.ending_portfolio),
                 t("tableColRealCapital", lang): format_num(p.ending_portfolio_real),
-                t("tableColNotes", lang): p.tax_notes or "",
+                t("tableColNotes", lang): note_text,
             }
         )
 
@@ -115,6 +120,7 @@ def render_yearly_table(
                 "Starting_Capital": round(p.starting_portfolio),
                 "Contribution": round(p.contribution),
                 "Gross_Withdrawal": round(p.gross_withdrawal),
+                "State_Pension": round(getattr(p, "state_pension_received", 0.0)),
                 "Taxes": round(p.tax_paid),
                 "Net_Disposable": round(p.net_disposable_income),
                 "Ending_Capital": round(p.ending_portfolio),

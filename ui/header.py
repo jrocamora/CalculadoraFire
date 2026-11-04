@@ -121,6 +121,34 @@ def inject_custom_css():
         div[role="radiogroup"] {
             gap: 8px;
         }
+
+        /* Remove +/- stepper buttons on Cost Basis number inputs */
+        div[data-testid="stNumberInput"]:has(input[aria-label*="Cost"]) button,
+        div[data-testid="stNumberInput"]:has(input[aria-label*="adquisició"]) button,
+        div[data-testid="stNumberInput"]:has(input[aria-label*="Cost"]) div[data-testid="stNumberInputStepDown"],
+        div[data-testid="stNumberInput"]:has(input[aria-label*="Cost"]) div[data-testid="stNumberInputStepUp"],
+        div[data-testid="stNumberInput"]:has(input[aria-label*="adquisició"]) div[data-testid="stNumberInputStepDown"],
+        div[data-testid="stNumberInput"]:has(input[aria-label*="adquisició"]) div[data-testid="stNumberInputStepUp"] {
+            display: none !important;
+        }
+
+        div[data-testid="stNumberInput"]:has(input[aria-label*="Cost"]) input,
+        div[data-testid="stNumberInput"]:has(input[aria-label*="adquisició"]) input {
+            padding-right: 12px !important;
+        }
+
+        div[data-testid="stNumberInput"]:has(input[aria-label*="Cost"]) input::-webkit-outer-spin-button,
+        div[data-testid="stNumberInput"]:has(input[aria-label*="Cost"]) input::-webkit-inner-spin-button,
+        div[data-testid="stNumberInput"]:has(input[aria-label*="adquisició"]) input::-webkit-outer-spin-button,
+        div[data-testid="stNumberInput"]:has(input[aria-label*="adquisició"]) input::-webkit-inner-spin-button {
+            -webkit-appearance: none !important;
+            margin: 0 !important;
+        }
+
+        div[data-testid="stNumberInput"]:has(input[aria-label*="Cost"]) input[type=number],
+        div[data-testid="stNumberInput"]:has(input[aria-label*="adquisició"]) input[type=number] {
+            -moz-appearance: textfield !important;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -173,25 +201,16 @@ def render_header(
 
     with col_privacy:
         st.markdown(
-            f"""
+            """
             <div style="
-                background: #f0fdf4;
-                border: 1px solid #bbf7d0;
-                border-radius: 10px;
-                padding: 8px 12px;
-                font-size: 0.74rem;
-                display: flex; align-items: center; gap: 8px;
-                margin-top: 4px;
+                color: #64748b;
+                font-size: 0.72rem;
+                display: flex; align-items: center; gap: 6px;
+                padding-top: 14px;
+                justify-content: flex-end;
             ">
-                <span style="font-size: 1rem;">🔒</span>
-                <div>
-                    <div style="font-weight: 700; color: #166534;">
-                        100% Client-Side Privacy
-                    </div>
-                    <div style="font-size: 0.68rem; color: #15803d;">
-                        All calculations run locally • Zero data sent to any server
-                    </div>
-                </div>
+                <span>🔒</span>
+                <span>Calculations run locally • No data stored</span>
             </div>
             """,
             unsafe_allow_html=True,

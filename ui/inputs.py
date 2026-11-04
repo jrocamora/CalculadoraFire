@@ -134,6 +134,47 @@ def render_bidirectional_inputs(
             "real_estate_other": "🏡 " + t("categoryRealEstateOther", lang),
         }
 
+        st.markdown(
+            """
+            <style>
+            /* Hide +/- stepper buttons on Cost Basis number inputs */
+            div[data-testid="stNumberInput"]:has(input[aria-label*="Cost"]) button,
+            div[data-testid="stNumberInput"]:has(input[aria-label*="adquisició"]) button,
+            div[data-testid="stNumberInput"]:has(input[aria-label*="Cost"]) div[data-testid="stNumberInputStepDown"],
+            div[data-testid="stNumberInput"]:has(input[aria-label*="Cost"]) div[data-testid="stNumberInputStepUp"],
+            div[data-testid="stNumberInput"]:has(input[aria-label*="adquisició"]) div[data-testid="stNumberInputStepDown"],
+            div[data-testid="stNumberInput"]:has(input[aria-label*="adquisició"]) div[data-testid="stNumberInputStepUp"] {
+                display: none !important;
+            }
+
+            div[data-testid="stNumberInput"]:has(input[aria-label*="Cost"]) input,
+            div[data-testid="stNumberInput"]:has(input[aria-label*="adquisició"]) input {
+                padding-right: 12px !important;
+            }
+
+            div[data-testid="stNumberInput"]:has(input[aria-label*="Cost"]) input::-webkit-outer-spin-button,
+            div[data-testid="stNumberInput"]:has(input[aria-label*="Cost"]) input::-webkit-inner-spin-button,
+            div[data-testid="stNumberInput"]:has(input[aria-label*="adquisició"]) input::-webkit-outer-spin-button,
+            div[data-testid="stNumberInput"]:has(input[aria-label*="adquisició"]) input::-webkit-inner-spin-button {
+                -webkit-appearance: none !important;
+                margin: 0 !important;
+            }
+
+            div[data-testid="stNumberInput"]:has(input[aria-label*="Cost"]) input[type=number],
+            div[data-testid="stNumberInput"]:has(input[aria-label*="adquisició"]) input[type=number] {
+                -moz-appearance: textfield !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        def _sync_cost_basis(asset_id: str):
+            """Resets cost basis to match current capital when capital is adjusted."""
+            new_val = st.session_state.get(f"asset_amount_{asset_id}")
+            if new_val is not None:
+                st.session_state[f"asset_cost_{asset_id}"] = float(new_val)
+
         updated_assets: list[PortfolioAsset] = []
         for i, a in enumerate(assets):
             st.markdown(f"**{category_icons.get(a.category, a.name)}**")
@@ -146,6 +187,8 @@ def render_bidirectional_inputs(
                     value=float(a.current_amount),
                     step=1000.0,
                     key=f"asset_amount_{a.id}",
+                    on_change=_sync_cost_basis,
+                    args=(a.id,),
                 )
             with c_ret:
                 ret = st.number_input(
@@ -157,24 +200,70 @@ def render_bidirectional_inputs(
                     key=f"asset_ret_{a.id}",
                 )
             with c_cost:
-                cost_help = (
-                    "Original purchase cost / money deposited into this asset. "
-                    "Used by Revenue to compute taxable capital gains (Profit = Market Value - Cost Basis) "
-                    "vs. tax-free return of your original principal."
-                    if lang == "en"
-                    else "Preu d'adquisició o diners dipositats originalment en aquest actiu. "
-                    "La hisenda tributària el fa servir per calcular les plusvàlues subjectes a impost "
-                    "(Guany = Valor de mercat - Cost d'adquisició) enfront del retorn exempt del teu propi capital."
-                )
-                cost = st.number_input(
-                    "Cost basis (€)",
-                    min_value=0.0,
-                    max_value=20000000.0,
-                    value=float(a.cost_basis),
-                    step=1000.0,
-                    key=f"asset_cost_{a.id}",
-                    help=cost_help,
-                )
+                if a.category in ("private_pension", "my_future_fund"):
+                    cost = amt  # Kept in sync with capital (no taxable capital gains)
+                    st.caption("Tax Status" if lang == "en" else "Estat fiscal")
+                    pension_icon = "🛡️" if a.category == "private_pension" else "🏛️"
+                    st.markdown(
+                        f"""
+                        <div style="
+                            background: #ecfdf5;
+                            border: 1px solid #a7f3d0;
+                            border-radius: 8px;
+                            padding: 7px 8px;
+                            font-size: 0.72rem;
+                            font-weight: 700;
+                            color: #047857;
+                            text-align: center;
+                            line-height: 1.3;
+                            margin-top: 2px;
+                        " title="Pensions in Ireland grow 100% exempt from CGT and Exit Tax. Drawdowns are taxed as PAYE income (or 25% tax-free lump sum), not capital gains, so cost basis does not apply.">
+                            {pension_icon} Tax-Free Growth
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                elif a.category == "cash_deposits":
+                    cost = amt  # Cash balance has zero capital gain; interest subject to DIRT
+                    st.caption("Tax Status" if lang == "en" else "Estat fiscal")
+                    st.markdown(
+                        """
+                        <div style="
+                            background: #f8fafc;
+                            border: 1px solid #e2e8f0;
+                            border-radius: 8px;
+                            padding: 7px 8px;
+                            font-size: 0.72rem;
+                            font-weight: 700;
+                            color: #475569;
+                            text-align: center;
+                            line-height: 1.3;
+                            margin-top: 2px;
+                        " title="Cash deposits and savings are exempt from Capital Gains Tax. Only interest earned is subject to DIRT (33%), so cost basis is not applicable.">
+                            💶 0% CGT (DIRT)
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    cost_help = (
+                        "Original purchase cost / money deposited into this asset. "
+                        "Used by Revenue to compute taxable capital gains (Profit = Market Value - Cost Basis) "
+                        "vs. tax-free return of your original principal."
+                        if lang == "en"
+                        else "Preu d'adquisició o diners dipositats originalment en aquest actiu. "
+                        "La hisenda tributària el fa servir per calcular les plusvàlues subjectes a impost "
+                        "(Guany = Valor de mercat - Cost d'adquisició) enfront del retorn exempt del teu propi capital."
+                    )
+                    cost = st.number_input(
+                        "Cost basis (€)",
+                        min_value=0.0,
+                        max_value=20000000.0,
+                        value=float(a.cost_basis),
+                        step=1000.0,
+                        key=f"asset_cost_{a.id}",
+                        help=cost_help,
+                    )
             updated_assets.append(
                 PortfolioAsset(
                     id=a.id,

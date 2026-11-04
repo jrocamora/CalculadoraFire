@@ -49,6 +49,11 @@ class PensionSettings:
     my_future_fund_access_age: int = 66  # Edat de la Pensió d'Estat a Irlanda
     my_future_fund_tax_free_lump_sum_pct: float = 25.0  # 25% exempt d'impostos
 
+    # State Pension (Contributory - Pensió Pública de l'Estat)
+    state_pension_enabled: bool = True
+    state_pension_monthly_amount: float = 1253.0  # ~289.30 €/setmana (Taxa màxima d'Irlanda ~15.000 €/any)
+    state_pension_access_age: int = 66  # Edat legal d'accés a Irlanda
+
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +154,7 @@ class YearProjection:
     private_pension_value: float = 0.0  # Valor del pla privat
     my_future_fund_value: float = 0.0  # Valor de MyFutureFund
     tax_free_lump_sum_received: float = 0.0  # 25% lump sum cobrat aquest any
+    state_pension_received: float = 0.0  # Pensió pública de l'Estat rebuda aquest any
     deemed_disposal_tax_paid: Optional[float] = None
     tax_notes: Optional[str] = None
 
@@ -182,6 +188,8 @@ class FireCalculationResult:
     pension_capital_at_fire: float = 0.0
     private_pension_unlocked_age: int = 50
     my_future_fund_unlocked_age: int = 66
+    state_pension_unlocked_age: int = 66
+    state_pension_annual_amount: float = 0.0
     tax_free_lump_sum_total: float = 0.0
 
 

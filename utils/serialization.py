@@ -1,6 +1,6 @@
 """
 Plan serialization and deserialization for URL sharing and local JSON export/import.
-Guarantees 100% client-side privacy: all calculations and data stay local to the user's browser.
+All calculations and data stay local; no data is sent to or stored on any server.
 """
 from __future__ import annotations
 
@@ -63,6 +63,9 @@ def plan_to_dict(
             "my_future_fund_expected_return": float(pension_settings.my_future_fund_expected_return),
             "my_future_fund_access_age": int(pension_settings.my_future_fund_access_age),
             "my_future_fund_tax_free_lump_sum_pct": float(pension_settings.my_future_fund_tax_free_lump_sum_pct),
+            "state_pension_enabled": bool(getattr(pension_settings, "state_pension_enabled", True)),
+            "state_pension_monthly_amount": float(getattr(pension_settings, "state_pension_monthly_amount", 1253.0)),
+            "state_pension_access_age": int(getattr(pension_settings, "state_pension_access_age", 66)),
         },
         "tax_settings": {
             "country": tax_settings.country,
@@ -135,6 +138,10 @@ def dict_to_session_state(plan: dict[str, Any], session_state) -> bool:
                 )
                 for i, a in enumerate(plan["assets"])
             ]
+            for a in session_state.assets:
+                session_state[f"asset_amount_{a.id}"] = float(a.current_amount)
+                session_state[f"asset_ret_{a.id}"] = float(a.expected_return_annual)
+                session_state[f"asset_cost_{a.id}"] = float(a.cost_basis)
 
         if "pension_settings" in plan:
             ps = plan["pension_settings"]
@@ -153,6 +160,9 @@ def dict_to_session_state(plan: dict[str, Any], session_state) -> bool:
                 my_future_fund_expected_return=float(ps.get("my_future_fund_expected_return", 7.0)),
                 my_future_fund_access_age=int(ps.get("my_future_fund_access_age", 66)),
                 my_future_fund_tax_free_lump_sum_pct=float(ps.get("my_future_fund_tax_free_lump_sum_pct", 25.0)),
+                state_pension_enabled=bool(ps.get("state_pension_enabled", True)),
+                state_pension_monthly_amount=float(ps.get("state_pension_monthly_amount", 1253.0)),
+                state_pension_access_age=int(ps.get("state_pension_access_age", 66)),
             )
 
         if "tax_settings" in plan:

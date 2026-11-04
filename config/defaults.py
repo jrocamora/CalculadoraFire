@@ -28,6 +28,9 @@ def get_initial_pension_settings() -> PensionSettings:
         my_future_fund_expected_return=7.0,
         my_future_fund_access_age=66,
         my_future_fund_tax_free_lump_sum_pct=25.0,
+        state_pension_enabled=True,
+        state_pension_monthly_amount=1253.0,
+        state_pension_access_age=66,
     )
 
 

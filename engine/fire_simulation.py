@@ -88,7 +88,10 @@ def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult
         if (pension_settings and pension_settings.private_pension_enabled)
         else 50
     )
-    mff_access_age = 66  # Edat de la Pensió Estatal d'Irlanda
+    mff_access_age = int(getattr(pension_settings, "my_future_fund_access_age", 66)) if pension_settings else 66
+    state_pension_enabled = bool(getattr(pension_settings, "state_pension_enabled", True)) if pension_settings else False
+    state_pension_monthly = float(getattr(pension_settings, "state_pension_monthly_amount", 1253.0)) if pension_settings else 1253.0
+    state_pension_access_age = int(getattr(pension_settings, "state_pension_access_age", 66)) if pension_settings else 66
 
     # Variables calculades objectiu
     target_annual_net_income = 0.0
@@ -222,6 +225,7 @@ def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult
 
         contribution_this_year = 0.0
         gross_withdrawal_this_year = 0.0
+        state_pension_this_year = 0.0
         tax_paid_this_year = 0.0
         net_disposable_this_year = 0.0
         deemed_disposal_tax_paid = 0.0
@@ -340,24 +344,39 @@ def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult
             # Despesa total requerida ajustada per inflació
             inflated_gross_withdrawal = gross_withdrawal_needed * inflation_factor
 
-            # Ingressos de pensions per cobrir part o la totalitat de la despesa
+            # Ingressos de la Pensió Pública d'Estat (Pilar 1)
+            if state_pension_enabled and age >= state_pension_access_age:
+                state_pension_this_year = (state_pension_monthly * 12.0) * inflation_factor
+                if age == state_pension_access_age:
+                    pension_note = (
+                        f"🏛️ State Pension active! +€{round(state_pension_this_year):,} /yr (€{round(state_pension_monthly):,}/mo)"
+                        if is_en
+                        else f"🏛️ Pensió d'Estat activa! +{round(state_pension_this_year):,} €/any ({round(state_pension_monthly):,} €/mes)"
+                    )
+                    notes = f"{notes} | {pension_note}" if notes else pension_note
+
+            # Quantitat necessària a cobrir des de carteres d'inversió (després de la pensió pública)
+            needed_from_portfolios = max(0.0, inflated_gross_withdrawal - state_pension_this_year)
+
+            # Ingressos de pensions privades/ARF per cobrir la despesa restant
             pension_drawdown_this_year = 0.0
 
             # Retirada de l'ARF de la Pensió Privada (si ja està desbloquejada)
-            if p_pension_unlocked and p_pension_pot > 0:
-                # Retirada estàndard del 4% d'ARF
-                p_drawdown = min(p_pension_pot, p_pension_pot * swr_decimal)
+            if p_pension_unlocked and p_pension_pot > 0 and needed_from_portfolios > 0:
+                p_drawdown = min(p_pension_pot, min(p_pension_pot * swr_decimal, needed_from_portfolios))
                 p_pension_pot -= p_drawdown
                 pension_drawdown_this_year += p_drawdown
+                needed_from_portfolios = max(0.0, needed_from_portfolios - p_drawdown)
 
             # Retirada de MyFutureFund (a partir dels 66 anys)
-            if mff_unlocked and mff_pot > 0:
-                mff_drawdown = min(mff_pot, mff_pot * swr_decimal)
+            if mff_unlocked and mff_pot > 0 and needed_from_portfolios > 0:
+                mff_drawdown = min(mff_pot, min(mff_pot * swr_decimal, needed_from_portfolios))
                 mff_pot -= mff_drawdown
                 pension_drawdown_this_year += mff_drawdown
+                needed_from_portfolios = max(0.0, needed_from_portfolios - mff_drawdown)
 
             # El romanent es retira de la Cartera Pont (Bridge)
-            withdrawal_from_bridge = max(0.0, inflated_gross_withdrawal - pension_drawdown_this_year)
+            withdrawal_from_bridge = needed_from_portfolios
 
             # Es retira primer del Compte d'Inversió 2027 (0% Exit Tax i 0% CGT)
             draw_b27 = min(b27_pot, withdrawal_from_bridge)
@@ -370,7 +389,7 @@ def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult
 
             actual_bridge_withdrawal = draw_b27 + draw_other
             bridge_pot = b27_pot + other_bridge_pot
-            gross_withdrawal_this_year = actual_bridge_withdrawal + pension_drawdown_this_year
+            gross_withdrawal_this_year = actual_bridge_withdrawal + pension_drawdown_this_year + state_pension_this_year
 
             # Càlcul d'impostos
             # 1. Compte 2027: 0% en retirada; taxa de l'1% només sobre el saldo restant que superi el threshold
@@ -452,6 +471,7 @@ def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult
                 private_pension_value=p_pension_pot,
                 my_future_fund_value=mff_pot,
                 tax_free_lump_sum_received=lump_sum_this_year,
+                state_pension_received=state_pension_this_year,
                 deemed_disposal_tax_paid=deemed_disposal_tax_paid if deemed_disposal_tax_paid > 0 else None,
                 tax_notes=notes if notes else None,
             )
@@ -489,5 +509,7 @@ def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult
         pension_capital_at_fire=proj_at_fire.pension_portfolio if proj_at_fire else (private_pension_initial + mff_initial),
         private_pension_unlocked_age=p_pension_access_age,
         my_future_fund_unlocked_age=mff_access_age,
+        state_pension_unlocked_age=state_pension_access_age,
+        state_pension_annual_amount=(state_pension_monthly * 12.0) if state_pension_enabled else 0.0,
         tax_free_lump_sum_total=total_tax_free_lump_sum_cum,
     )

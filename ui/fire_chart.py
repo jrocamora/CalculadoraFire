@@ -7,7 +7,7 @@ from __future__ import annotations
 import plotly.graph_objects as go
 import streamlit as st
 from config.translations import Language, t
-from models.types import YearProjection
+from models.types import PensionSettings, YearProjection
 
 
 def render_fire_chart(
@@ -15,6 +15,7 @@ def render_fire_chart(
     fire_number_nominal: float,
     retirement_age: int,
     lang: Language,
+    pension_settings: PensionSettings | None = None,
 ):
     """Renderitza el gràfic interactiu de la trajectòria patrimonial amb Plotly."""
     if not projections:
@@ -129,14 +130,30 @@ def render_fire_chart(
             annotation_font=dict(color="#10b981", size=11),
         )
 
-    # 5. Línia vertical de MyFutureFund & Pensió d'Estat (66 anys)
-    if any(p.age == 66 for p in projections) and 66 != retirement_age:
+    # 5. Línia vertical de desbloqueig de la Pensió Privada (si està activada)
+    if pension_settings and getattr(pension_settings, "private_pension_enabled", False):
+        p_acc = int(getattr(pension_settings, "private_pension_access_age", 50))
+        if any(p.age == p_acc for p in projections) and p_acc != retirement_age:
+            fig.add_vline(
+                x=p_acc,
+                line_dash="dashdot",
+                line_color="#8b5cf6",
+                line_width=1.5,
+                annotation_text=f"🛡️ Age {p_acc}: Private Pension (25% Lump Sum + ARF)",
+                annotation_position="top left",
+                annotation_font=dict(color="#8b5cf6", size=10),
+            )
+
+    # 6. Línia vertical de MyFutureFund & Pensió d'Estat (66 anys)
+    has_mff = pension_settings and getattr(pension_settings, "my_future_fund_enabled", False)
+    has_sp = pension_settings and getattr(pension_settings, "state_pension_enabled", False)
+    if (has_mff or has_sp) and any(p.age == 66 for p in projections) and 66 != retirement_age:
         fig.add_vline(
             x=66,
             line_dash="dot",
             line_color="#38bdf8",
             line_width=1.5,
-            annotation_text="🏛️ Age 66: MyFutureFund & State Pension",
+            annotation_text="🏛️ Age 66: State Pension & MFF",
             annotation_position="top right",
             annotation_font=dict(color="#38bdf8", size=10),
         )

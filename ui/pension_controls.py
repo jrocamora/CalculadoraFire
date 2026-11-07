@@ -57,7 +57,7 @@ def render_pension_controls(
     with tab_state:
         sp_enabled = st.checkbox(
             t("statePensionEnableCheckbox", lang),
-            value=bool(getattr(pension_settings, "state_pension_enabled", True)),
+            value=bool(getattr(pension_settings, "state_pension_enabled", False)),
             key="pension_state_enabled",
         )
 
@@ -133,7 +133,7 @@ def render_pension_controls(
     with tab_private:
         p_enabled = st.checkbox(
             "Enable Private Pension / PRSA",
-            value=bool(pension_settings.private_pension_balance > 0 or pension_settings.private_pension_monthly_contribution > 0),
+            value=bool(getattr(pension_settings, "private_pension_enabled", False)),
             key="pension_private_enabled",
         )
 
@@ -200,7 +200,7 @@ def render_pension_controls(
     with tab_mff:
         mff_enabled = st.checkbox(
             "Enable MyFutureFund (National Auto-Enrolment)",
-            value=bool(pension_settings.my_future_fund_balance > 0 or pension_settings.my_future_fund_employee_monthly > 0),
+            value=bool(getattr(pension_settings, "my_future_fund_enabled", False)),
             key="pension_mff_enabled",
         )
 

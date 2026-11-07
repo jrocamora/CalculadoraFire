@@ -14,13 +14,13 @@ def get_current_year() -> int:
 
 def get_initial_pension_settings() -> PensionSettings:
     return PensionSettings(
-        private_pension_enabled=True,
+        private_pension_enabled=False,
         private_pension_balance=45000.0,
         private_pension_monthly_contribution=500.0,
         private_pension_expected_return=7.0,
         private_pension_access_age=50,
         private_pension_tax_free_lump_sum_pct=25.0,
-        my_future_fund_enabled=True,
+        my_future_fund_enabled=False,
         my_future_fund_balance=12000.0,
         my_future_fund_employee_monthly=200.0,
         my_future_fund_employer_match_monthly=200.0,
@@ -28,7 +28,7 @@ def get_initial_pension_settings() -> PensionSettings:
         my_future_fund_expected_return=7.0,
         my_future_fund_access_age=66,
         my_future_fund_tax_free_lump_sum_pct=25.0,
-        state_pension_enabled=True,
+        state_pension_enabled=False,
         state_pension_monthly_amount=1253.0,
         state_pension_access_age=66,
     )
@@ -66,22 +66,6 @@ def get_initial_assets() -> list[PortfolioAsset]:
             name="Cash Deposits & Savings Accounts",
             current_amount=12000.0,
             expected_return_annual=3.0,
-            cost_basis=12000.0,
-        ),
-        PortfolioAsset(
-            id="asset-4",
-            category="private_pension",
-            name="Private Pension (PRSA / Workplace)",
-            current_amount=45000.0,
-            expected_return_annual=7.0,
-            cost_basis=45000.0,
-        ),
-        PortfolioAsset(
-            id="asset-5",
-            category="my_future_fund",
-            name="MyFutureFund (Auto-Enrolment)",
-            current_amount=12000.0,
-            expected_return_annual=7.0,
             cost_basis=12000.0,
         ),
         PortfolioAsset(

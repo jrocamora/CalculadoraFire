@@ -200,30 +200,7 @@ def render_bidirectional_inputs(
                     key=f"asset_ret_{a.id}",
                 )
             with c_cost:
-                if a.category in ("private_pension", "my_future_fund"):
-                    cost = amt  # Kept in sync with capital (no taxable capital gains)
-                    st.caption("Tax Status" if lang == "en" else "Estat fiscal")
-                    pension_icon = "🛡️" if a.category == "private_pension" else "🏛️"
-                    st.markdown(
-                        f"""
-                        <div style="
-                            background: #ecfdf5;
-                            border: 1px solid #a7f3d0;
-                            border-radius: 8px;
-                            padding: 7px 8px;
-                            font-size: 0.72rem;
-                            font-weight: 700;
-                            color: #047857;
-                            text-align: center;
-                            line-height: 1.3;
-                            margin-top: 2px;
-                        " title="Pensions in Ireland grow 100% exempt from CGT and Exit Tax. Drawdowns are taxed as PAYE income (or 25% tax-free lump sum), not capital gains, so cost basis does not apply.">
-                            {pension_icon} Tax-Free Growth
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                elif a.category == "cash_deposits":
+                if a.category == "cash_deposits":
                     cost = amt  # Cash balance has zero capital gain; interest subject to DIRT
                     st.caption("Tax Status" if lang == "en" else "Estat fiscal")
                     st.markdown(

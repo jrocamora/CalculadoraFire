@@ -47,21 +47,21 @@ def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult
     b27_initial = sum(float(a.current_amount or 0.0) for a in b27_assets)
     other_bridge_initial = max(0.0, bridge_capital_initial - b27_initial)
 
-    # Identificar fons de pensions des d'assets o des de pension_settings
+    # Obtenir fons de pensions exclusivament de pension_settings si estan activats (o fallback a assets per retrocompatibilitat)
     asset_p_pension = next((a for a in assets if a.category == "private_pension"), None)
     asset_mff = next((a for a in assets if a.category == "my_future_fund"), None)
 
-    if asset_p_pension:
-        private_pension_initial = float(asset_p_pension.current_amount or 0.0)
-    elif pension_settings and pension_settings.private_pension_enabled:
+    if pension_settings and getattr(pension_settings, "private_pension_enabled", False):
         private_pension_initial = float(pension_settings.private_pension_balance or 0.0)
+    elif asset_p_pension:
+        private_pension_initial = float(asset_p_pension.current_amount or 0.0)
     else:
         private_pension_initial = 0.0
 
-    if asset_mff:
-        mff_initial = float(asset_mff.current_amount or 0.0)
-    elif pension_settings and pension_settings.my_future_fund_enabled:
+    if pension_settings and getattr(pension_settings, "my_future_fund_enabled", False):
         mff_initial = float(pension_settings.my_future_fund_balance or 0.0)
+    elif asset_mff:
+        mff_initial = float(asset_mff.current_amount or 0.0)
     else:
         mff_initial = 0.0
 

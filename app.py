@@ -89,7 +89,7 @@ def handle_reset_defaults():
     """Resets all simulation parameters to default Irish baseline values."""
     st.query_params.clear()
     for k in list(st.session_state.keys()):
-        if k.startswith("asset_") or k.startswith("pension_") or k in (
+        if k.startswith("asset_") or k.startswith("pension_") or k.startswith("preset_") or k in (
             "target_monthly_income_input",
             "target_monthly_income_slider",
             "monthly_savings_input",
@@ -220,7 +220,7 @@ def main():
             a.expected_return_annual = float(st.session_state[f"asset_ret_{a.id}"])
         if f"asset_cost_{a.id}" in st.session_state:
             a.cost_basis = float(st.session_state[f"asset_cost_{a.id}"])
-        elif a.category in ("private_pension", "my_future_fund", "cash_deposits"):
+        elif a.category in ("cash_deposits",):
             a.cost_basis = float(a.current_amount)
 
     if "monthly_savings_input" in st.session_state:
@@ -237,6 +237,24 @@ def main():
         st.session_state.pension_settings.state_pension_monthly_amount = float(st.session_state.pension_state_mo_input)
     if "pension_state_age_slider" in st.session_state:
         st.session_state.pension_settings.state_pension_access_age = int(st.session_state.pension_state_age_slider)
+    if "pension_private_enabled" in st.session_state:
+        st.session_state.pension_settings.private_pension_enabled = bool(st.session_state.pension_private_enabled)
+    if "pension_private_bal_input" in st.session_state:
+        st.session_state.pension_settings.private_pension_balance = float(st.session_state.pension_private_bal_input)
+    if "pension_private_mo_input" in st.session_state:
+        st.session_state.pension_settings.private_pension_monthly_contribution = float(st.session_state.pension_private_mo_input)
+    if "pension_private_ret_input" in st.session_state:
+        st.session_state.pension_settings.private_pension_expected_return = float(st.session_state.pension_private_ret_input)
+    if "pension_private_acc_slider" in st.session_state:
+        st.session_state.pension_settings.private_pension_access_age = int(st.session_state.pension_private_acc_slider)
+    if "pension_mff_enabled" in st.session_state:
+        st.session_state.pension_settings.my_future_fund_enabled = bool(st.session_state.pension_mff_enabled)
+    if "pension_mff_bal_input" in st.session_state:
+        st.session_state.pension_settings.my_future_fund_balance = float(st.session_state.pension_mff_bal_input)
+    if "pension_mff_emp_input" in st.session_state:
+        st.session_state.pension_settings.my_future_fund_employee_monthly = float(st.session_state.pension_mff_emp_input)
+    if "pension_mff_ret_input" in st.session_state:
+        st.session_state.pension_settings.my_future_fund_expected_return = float(st.session_state.pension_mff_ret_input)
 
     fire_inputs = FireInputs(
         mode=st.session_state.mode,
@@ -316,14 +334,6 @@ def main():
                 target_retirement_age=st.session_state.target_retirement_age,
                 lang=lang,
             )
-            # Sync matching assets in portfolio
-            for a in st.session_state.assets:
-                if a.category == "private_pension":
-                    a.current_amount = st.session_state.pension_settings.private_pension_balance
-                    a.expected_return_annual = st.session_state.pension_settings.private_pension_expected_return
-                elif a.category == "my_future_fund":
-                    a.current_amount = st.session_state.pension_settings.my_future_fund_balance
-                    a.expected_return_annual = st.session_state.pension_settings.my_future_fund_expected_return
 
         # Irish Tax Rules & Investment Schemes (Budget 2027)
         with st.container(border=True):
@@ -354,6 +364,7 @@ def main():
                     fire_number_nominal=result.fire_number_nominal,
                     retirement_age=result.age_at_fire,
                     lang=lang,
+                    pension_settings=st.session_state.pension_settings,
                 )
 
             with st.container(border=True):

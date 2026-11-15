@@ -5,6 +5,7 @@ Mostra les explicacions completes de cada regla sense truncar.
 from __future__ import annotations
 
 import streamlit as st
+from ui.keys import k
 from config.translations import Language, t
 
 
@@ -45,13 +46,15 @@ def render_swr_control(
         unsafe_allow_html=True,
     )
 
+    # Seeded through session state because the preset buttons write to this slider
+    if k("swr_slider") not in st.session_state:
+        st.session_state[k("swr_slider")] = min(5.5, max(2.5, float(current_swr)))
     new_swr = st.slider(
         "SWR (%)",
         min_value=2.5,
         max_value=5.5,
-        value=float(current_swr),
         step=0.1,
-        key="swr_slider",
+        key=k("swr_slider"),
         label_visibility="collapsed",
     )
 
@@ -83,6 +86,9 @@ def render_swr_control(
         },
     ]
 
+    def _apply_swr_preset(rate: float):
+        st.session_state[k("swr_slider")] = float(rate)
+
     cols = st.columns(4)
     active_preset_desc = ""
     active_preset_badge = ""
@@ -95,15 +101,14 @@ def render_swr_control(
 
         with cols[i]:
             btn_label = f"{'★ ' if is_active else ''}{p['rate']:.1f}% ({p['mul']})"
-            if st.button(
+            st.button(
                 btn_label,
-                key=f"swr_preset_{p['rate']}",
-                use_container_width=True,
+                key=k(f"swr_preset_{p['rate']}"),
+                width="stretch",
                 type="primary" if is_active else "secondary",
-            ):
-                new_swr = p["rate"]
-                active_preset_desc = p["desc"]
-                active_preset_badge = p["badge"]
+                on_click=_apply_swr_preset,
+                args=(p["rate"],),
+            )
 
     # Mostrar l'explicació completa sense cap truncament
     if not active_preset_desc:

@@ -1,10 +1,11 @@
 """
 Configurador fiscal d'Irlanda i esquemes d'inversió (Pressupost 2027).
-Centrat exclusivament en Irlanda, amagant Catalunya i Andorra.
+Centrat exclusivament en Irlanda. L'opció triada decideix on van els estalvis nous.
 """
 from __future__ import annotations
 
 import streamlit as st
+from ui.keys import k
 from config.translations import Language, t
 from models.types import IrelandAssetType, TaxSettings
 
@@ -36,7 +37,7 @@ def render_country_tax_selector(
                 background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0;
                 border-radius: 9999px; padding: 3px 8px; font-size: 0.70rem; font-weight: 700;
             ">
-                Budget 2027 Verified
+                Budget 2027 · subject to legislation
             </span>
         </div>
         """,
@@ -73,15 +74,20 @@ def render_country_tax_selector(
     }
 
     selected_scheme = st.radio(
-        t("irelandInvestmentType", lang),
+        "Where do your new monthly savings go?",
         options=scheme_options,
         format_func=lambda x: scheme_labels[x],
         index=scheme_options.index(new_settings.ireland_asset_type) if new_settings.ireland_asset_type in scheme_options else 0,
-        key="ireland_scheme_radio",
+        key=k("ireland_scheme_radio"),
+        help="Existing assets keep their own tax treatment: the Investment Account pays the yearly balance charge, "
+        "index funds / ETFs pay Exit Tax (and Deemed Disposal), and shares, cash and other assets pay CGT on gains.",
     )
     new_settings.ireland_asset_type = selected_scheme
 
-    # Panell de detall de l'esquema seleccionat
+    threshold = float(new_settings.ireland_investment_account_threshold)
+    acct_rate = float(new_settings.ireland_investment_account_rate)
+
+    # Panell de detall de l'opció seleccionada
     if selected_scheme == "budget_2027_account":
         st.markdown(
             f"""
@@ -94,39 +100,19 @@ def render_country_tax_selector(
                     {t('irelandBudget2027Account', lang)}
                 </div>
                 <div style="font-size: 0.74rem; color: #166534; line-height: 1.5; margin-bottom: 10px;">
-                    {t('irelandBudget2027AccountSub', lang)}
+                    Opens on 1 July 2027. Savings go into the account up to €12,000 a year (€6,000 in 2027);
+                    anything above the limit, and everything saved before it opens, goes into ETFs.
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.72rem; color: #334155; border-top: 1px solid #bbf7d0; padding-top: 8px;">
-                    <div>• <strong>€50,000:</strong> 0% Tax (Tax-Free Allowance)</div>
-                    <div>• <strong>Balance >€50k:</strong> Flat 1% Annual Tax</div>
-                    <div>• <strong>Withdrawals:</strong> 0% CGT / 0% Exit Tax</div>
-                    <div>• <strong>Deemed Disposal:</strong> EXEMPT (0%)</div>
+                    <div>• <strong>First €{threshold:,.0f}:</strong> no tax</div>
+                    <div>• <strong>Balance above:</strong> {acct_rate:g}% a year</div>
+                    <div>• <strong>Withdrawals:</strong> no CGT / Exit Tax</div>
+                    <div>• <strong>Deemed Disposal:</strong> does not apply</div>
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-
-        col_thresh, col_pct = st.columns(2)
-        with col_thresh:
-            new_settings.ireland_investment_account_threshold = st.number_input(
-                "Tax-Free Threshold (€)",
-                min_value=0.0,
-                max_value=200000.0,
-                value=float(new_settings.ireland_investment_account_threshold),
-                step=5000.0,
-                key="ie_budget2027_threshold",
-            )
-        with col_pct:
-            new_settings.ireland_investment_account_rate = st.number_input(
-                "Annual Tax on Balance >€50k (%)",
-                min_value=0.0,
-                max_value=5.0,
-                value=float(new_settings.ireland_investment_account_rate),
-                step=0.25,
-                key="ie_budget2027_rate",
-            )
-
     elif selected_scheme == "etf_exit_tax":
         st.markdown(
             f"""
@@ -138,50 +124,14 @@ def render_country_tax_selector(
                 <div style="font-size: 0.82rem; font-weight: 800; color: #b45309; margin-bottom: 4px;">
                     {t('irelandEtfsExitTax', lang)}
                 </div>
-                <div style="font-size: 0.74rem; color: #78350f; line-height: 1.5; margin-bottom: 8px;">
+                <div style="font-size: 0.74rem; color: #78350f; line-height: 1.5;">
                     {t('irelandEtfsExitTaxSub', lang)}
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-
-        col_exit_rate, col_deemed = st.columns([1.5, 2.5])
-        with col_exit_rate:
-            new_settings.ireland_exit_tax_rate = st.slider(
-                "Exit Tax Rate (%)",
-                min_value=20.0,
-                max_value=45.0,
-                value=float(new_settings.ireland_exit_tax_rate),
-                step=1.0,
-                key="ie_exit_rate_slider",
-                help="Budget 2027 reduced Exit Tax to 35% (effective Jan 1, 2027). Legacy rate was 41%.",
-            )
-
-        with col_deemed:
-            new_settings.ireland_simulate_deemed_disposal = st.checkbox(
-                t("irelandDeemedDisposalTitle", lang),
-                value=bool(new_settings.ireland_simulate_deemed_disposal),
-                key="ie_deemed_disposal_checkbox",
-            )
-
-        if new_settings.ireland_simulate_deemed_disposal:
-            st.markdown(f"**{t('irelandDeemedDisposalModelLabel', lang)}**")
-            mode_choice = st.radio(
-                "Deemed disposal model",
-                options=["staggered_rolling_eighth", "lump_sum_8y"],
-                format_func=lambda x: (
-                    f"{t('irelandDeemedDisposalRolling', lang)}: {t('irelandDeemedDisposalRollingDesc', lang)}"
-                    if x == "staggered_rolling_eighth"
-                    else f"{t('irelandDeemedDisposalLumpSum', lang)}: {t('irelandDeemedDisposalLumpSumDesc', lang)}"
-                ),
-                index=0 if new_settings.ireland_deemed_disposal_mode == "staggered_rolling_eighth" else 1,
-                label_visibility="collapsed",
-                key="ie_deemed_mode_radio",
-            )
-            new_settings.ireland_deemed_disposal_mode = mode_choice  # type: ignore
-
-    elif selected_scheme == "individual_shares_cgt":
+    else:
         st.markdown(
             f"""
             <div style="
@@ -200,15 +150,73 @@ def render_country_tax_selector(
             unsafe_allow_html=True,
         )
 
-        new_settings.ireland_cgt_rate = st.slider(
-            "Capital Gains Tax (CGT) Rate (%)",
-            min_value=20.0,
-            max_value=40.0,
-            value=float(new_settings.ireland_cgt_rate),
-            step=1.0,
-            key="ie_cgt_rate_slider",
-            help="Budget 2027 reduced CGT to 31% (effective Oct 7, 2026). Legacy rate was 33%.",
+    # Deemed Disposal: s'aplica als ETFs que tinguis, sigui quina sigui l'opció d'estalvi
+    new_settings.ireland_simulate_deemed_disposal = st.checkbox(
+        t("irelandDeemedDisposalTitle", lang) + " (ETFs)",
+        value=bool(new_settings.ireland_simulate_deemed_disposal),
+        key=k("ie_deemed_disposal_checkbox"),
+    )
+    if new_settings.ireland_simulate_deemed_disposal:
+        st.markdown(f"**{t('irelandDeemedDisposalModelLabel', lang)}**")
+        mode_choice = st.radio(
+            "Deemed disposal model",
+            options=["staggered_rolling_eighth", "lump_sum_8y"],
+            format_func=lambda x: (
+                f"{t('irelandDeemedDisposalRolling', lang)}: {t('irelandDeemedDisposalRollingDesc', lang)}"
+                if x == "staggered_rolling_eighth"
+                else f"{t('irelandDeemedDisposalLumpSum', lang)}: {t('irelandDeemedDisposalLumpSumDesc', lang)}"
+            ),
+            index=0 if new_settings.ireland_deemed_disposal_mode == "staggered_rolling_eighth" else 1,
+            label_visibility="collapsed",
+            key=k("ie_deemed_mode_radio"),
         )
+        new_settings.ireland_deemed_disposal_mode = mode_choice  # type: ignore
+
+    with st.expander("⚙️ Tax rates used in the simulation", expanded=False):
+        st.caption(
+            "Budget 2027 figures as announced in October 2026. They still depend on the Finance Bill, "
+            "so check them against Revenue before relying on them."
+        )
+        col_thresh, col_pct = st.columns(2)
+        with col_thresh:
+            new_settings.ireland_investment_account_threshold = st.number_input(
+                "Investment Account tax-free threshold (€)",
+                min_value=0.0,
+                max_value=200000.0,
+                value=float(new_settings.ireland_investment_account_threshold),
+                step=5000.0,
+                key=k("ie_budget2027_threshold"),
+            )
+        with col_pct:
+            new_settings.ireland_investment_account_rate = st.number_input(
+                "Investment Account yearly charge above threshold (%)",
+                min_value=0.0,
+                max_value=5.0,
+                value=float(new_settings.ireland_investment_account_rate),
+                step=0.25,
+                key=k("ie_budget2027_rate"),
+            )
+        col_exit, col_cgt = st.columns(2)
+        with col_exit:
+            new_settings.ireland_exit_tax_rate = st.slider(
+                "Exit Tax on ETFs (%)",
+                min_value=20.0,
+                max_value=45.0,
+                value=float(new_settings.ireland_exit_tax_rate),
+                step=1.0,
+                key=k("ie_exit_rate_slider"),
+                help="Budget 2027: 35% from 1 January 2027 (38% in 2026).",
+            )
+        with col_cgt:
+            new_settings.ireland_cgt_rate = st.slider(
+                "Capital Gains Tax (%)",
+                min_value=20.0,
+                max_value=40.0,
+                value=float(new_settings.ireland_cgt_rate),
+                step=1.0,
+                key=k("ie_cgt_rate_slider"),
+                help="Budget 2027: 31% on disposals from 7 October 2026 (previously 33%).",
+            )
 
     # Sensibilitat a reformes fiscals
     st.markdown("---")
@@ -220,7 +228,7 @@ def render_country_tax_selector(
         max_value=10.0,
         value=float(new_settings.tax_reform_change_rate or 0.0),
         step=1.0,
-        key="tax_reform_slider",
+        key=k("tax_reform_slider"),
     )
 
     return new_settings

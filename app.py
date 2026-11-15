@@ -1,7 +1,7 @@
 """
 🔥 FIRE Calculator Ireland Pro — Streamlit Application.
 Calibrated for the Irish tax framework including Budget 2027 reforms.
-100% Client-Side Simulation: All calculations run locally in your browser.
+The simulation runs on the Streamlit server for the duration of the session; nothing is persisted.
 """
 from __future__ import annotations
 
@@ -29,6 +29,7 @@ from ui import (
     render_tax_breakdown_card,
     render_yearly_table,
 )
+from ui.keys import k, reset_widgets
 from utils.serialization import (
     decode_token_to_plan,
     dict_to_session_state,
@@ -45,62 +46,8 @@ st.set_page_config(
 )
 
 
-def init_session_state():
-    """Initializes the session state defaults for the Irish edition or loads from shared URL."""
-    # Check if a plan is encoded in the URL query parameters (?plan=...)
-    if "plan_loaded" not in st.session_state:
-        st.session_state.plan_loaded = True
-        plan_param = st.query_params.get("plan")
-        if plan_param:
-            decoded = decode_token_to_plan(plan_param)
-            if decoded:
-                dict_to_session_state(decoded, st.session_state)
-                st.session_state.just_loaded_from_url = True
-
-    if "lang" not in st.session_state:
-        st.session_state.lang = "en"
-    if "mode" not in st.session_state:
-        st.session_state.mode = "target_spending"
-    if "current_age" not in st.session_state:
-        st.session_state.current_age = 32
-    if "target_retirement_age" not in st.session_state:
-        st.session_state.target_retirement_age = 48
-    if "life_expectancy" not in st.session_state:
-        st.session_state.life_expectancy = 88
-    if "target_monthly_income" not in st.session_state:
-        st.session_state.target_monthly_income = 2500.0
-    if "assets" not in st.session_state:
-        st.session_state.assets = get_initial_assets()
-    if "monthly_savings" not in st.session_state:
-        st.session_state.monthly_savings = 900.0
-    if "annual_savings_increase_rate" not in st.session_state:
-        st.session_state.annual_savings_increase_rate = 2.0
-    if "safe_withdrawal_rate" not in st.session_state:
-        st.session_state.safe_withdrawal_rate = 3.5
-    if "scenario" not in st.session_state:
-        st.session_state.scenario = get_initial_scenario()
-    if "tax_settings" not in st.session_state:
-        st.session_state.tax_settings = get_initial_tax_settings()
-    if "pension_settings" not in st.session_state:
-        st.session_state.pension_settings = get_initial_pension_settings()
-
-
-def handle_reset_defaults():
-    """Resets all simulation parameters to default Irish baseline values."""
-    st.query_params.clear()
-    for k in list(st.session_state.keys()):
-        if k.startswith("asset_") or k.startswith("pension_") or k.startswith("preset_") or k in (
-            "target_monthly_income_input",
-            "target_monthly_income_slider",
-            "monthly_savings_input",
-            "annual_savings_increase_input",
-            "current_age_input",
-            "ret_age_input",
-            "life_exp_input",
-            "calc_mode_radio",
-            "swr_slider",
-        ):
-            del st.session_state[k]
+def apply_defaults():
+    """Writes the default Irish baseline into the model held in session state."""
     st.session_state.mode = "target_spending"
     st.session_state.current_age = 32
     st.session_state.target_retirement_age = 48
@@ -113,26 +60,48 @@ def handle_reset_defaults():
     st.session_state.scenario = get_initial_scenario()
     st.session_state.tax_settings = get_initial_tax_settings()
     st.session_state.pension_settings = get_initial_pension_settings()
-    st.rerun()
 
 
-def main():
-    init_session_state()
-    lang: Language = "en"  # Fixed to English as requested
-    current_year = get_current_year()
+def init_session_state():
+    """Initializes the model on first run, or loads it from a shared URL / an uploaded plan."""
+    if "lang" not in st.session_state:
+        st.session_state.lang = "en"
+    if "ui_nonce" not in st.session_state:
+        st.session_state.ui_nonce = 0
+    if "mode" not in st.session_state:
+        apply_defaults()
 
-    # 1. Header with Ireland branding, light theme, and client-side privacy note
-    render_header(
-        current_country=st.session_state.tax_settings.country,
-        lang=lang,
-        on_reset_defaults=handle_reset_defaults,
-    )
+    # A plan encoded in the URL (?plan=...) is applied once, when the session starts
+    if "plan_loaded" not in st.session_state:
+        st.session_state.plan_loaded = True
+        plan_param = st.query_params.get("plan")
+        if plan_param:
+            decoded = decode_token_to_plan(plan_param)
+            if decoded and dict_to_session_state(decoded, st.session_state):
+                st.session_state.plan_notice = ("success", t("planLoadedSuccess", "en"))
+            else:
+                st.session_state.plan_notice = ("error", "This share link is not valid, so the default plan is shown.")
 
-    if st.session_state.get("just_loaded_from_url"):
-        st.success(t("planLoadedSuccess", lang))
-        st.session_state.just_loaded_from_url = False
+    # A plan uploaded as JSON in the previous run is applied here, before any widget is created.
+    # Bumping the widget generation also empties the file uploader, so it is applied exactly once.
+    pending = st.session_state.pop("pending_plan", None)
+    if pending is not None:
+        if dict_to_session_state(pending, st.session_state):
+            st.session_state.plan_notice = ("success", "✓ Plan loaded from file.")
+        else:
+            st.session_state.plan_notice = ("error", "That file is not a valid plan.")
+        reset_widgets()
 
-    # 2. Share & Save Plan
+
+def handle_reset_defaults():
+    """Button callback: resets every simulation parameter to the default Irish baseline."""
+    st.query_params.clear()
+    apply_defaults()
+    reset_widgets()
+
+
+def render_share_panel(lang: Language):
+    """Share link, JSON export and JSON import. Rendered after the inputs so it reflects the current values."""
     with st.expander("🔗 Share & Save Plan", expanded=False):
         st.markdown(
             f"""
@@ -150,7 +119,6 @@ def main():
 
         col_share, col_save, col_load = st.columns([2.5, 1.2, 1.3], gap="medium")
 
-        # Serialized plan dict for URL and JSON export
         current_plan = plan_to_dict(
             mode=st.session_state.mode,
             target_monthly_income=st.session_state.target_monthly_income,
@@ -169,28 +137,24 @@ def main():
 
         with col_share:
             st.markdown(f"**🔗 {t('sharePlan', lang)}**")
-            st.caption("Generate a shareable URL containing your numbers encoded in parameters:")
-            if st.button("Generate Shareable Link", key="btn_generate_share", use_container_width=True):
+            st.caption("Put your current numbers into this page's address so you can copy and share it:")
+            if st.button("Generate Shareable Link", key=k("btn_generate_share"), width="stretch"):
                 st.query_params["plan"] = plan_token
+                st.caption("✓ The address bar now holds your plan. Copy the page URL to share it.")
 
-            st.text_input(
-                t("shareUrlLabel", lang),
-                value=f"?plan={plan_token}",
-                key="share_url_field",
-                help="Copy this link. Anyone opening it will see your exact numbers without any server storage.",
-            )
+            st.code(f"?plan={plan_token}", language=None)
+            st.caption("Or append this to the app's address. Anyone with the link can read the numbers in it.")
 
         with col_save:
             st.markdown(f"**💾 {t('exportJson', lang)}**")
             st.caption("Download your inputs as a local file:")
-            json_data = json.dumps(current_plan, indent=2)
             st.download_button(
                 label="⬇ Download JSON",
-                data=json_data,
+                data=json.dumps(current_plan, indent=2),
                 file_name="ireland_fire_plan.json",
                 mime="application/json",
-                use_container_width=True,
-                key="download_plan_json_btn",
+                width="stretch",
+                key=k("download_plan_json_btn"),
             )
 
         with col_load:
@@ -199,106 +163,56 @@ def main():
             uploaded_file = st.file_uploader(
                 "Upload JSON file",
                 type=["json"],
-                key="upload_plan_json",
+                key=k("upload_plan_json"),
                 label_visibility="collapsed",
             )
             if uploaded_file is not None:
                 try:
                     uploaded_content = json.loads(uploaded_file.getvalue().decode("utf-8"))
-                    if dict_to_session_state(uploaded_content, st.session_state):
-                        st.toast("Plan loaded successfully!", icon="✅")
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"Error reading plan file: {e}")
+                except Exception:
+                    st.error("That file is not valid JSON.")
+                else:
+                    # Applied at the top of the next run (see init_session_state)
+                    st.session_state.pending_plan = uploaded_content
+                    st.rerun()
 
-    # 3. Simulation execution
-    # Ensure all models in session state are in sync with active widget values before simulation runs
-    for a in st.session_state.assets:
-        if f"asset_amount_{a.id}" in st.session_state:
-            a.current_amount = float(st.session_state[f"asset_amount_{a.id}"])
-        if f"asset_ret_{a.id}" in st.session_state:
-            a.expected_return_annual = float(st.session_state[f"asset_ret_{a.id}"])
-        if f"asset_cost_{a.id}" in st.session_state:
-            a.cost_basis = float(st.session_state[f"asset_cost_{a.id}"])
-        elif a.category in ("cash_deposits",):
-            a.cost_basis = float(a.current_amount)
 
-    if "monthly_savings_input" in st.session_state:
-        st.session_state.monthly_savings = float(st.session_state.monthly_savings_input)
-    if "annual_savings_increase_input" in st.session_state:
-        st.session_state.annual_savings_increase_rate = float(st.session_state.annual_savings_increase_input)
-    if "target_monthly_income_input" in st.session_state:
-        st.session_state.target_monthly_income = float(st.session_state.target_monthly_income_input)
-    if "calc_mode_radio" in st.session_state:
-        st.session_state.mode = st.session_state.calc_mode_radio
-    if "pension_state_enabled" in st.session_state:
-        st.session_state.pension_settings.state_pension_enabled = bool(st.session_state.pension_state_enabled)
-    if "pension_state_mo_input" in st.session_state:
-        st.session_state.pension_settings.state_pension_monthly_amount = float(st.session_state.pension_state_mo_input)
-    if "pension_state_age_slider" in st.session_state:
-        st.session_state.pension_settings.state_pension_access_age = int(st.session_state.pension_state_age_slider)
-    if "pension_private_enabled" in st.session_state:
-        st.session_state.pension_settings.private_pension_enabled = bool(st.session_state.pension_private_enabled)
-    if "pension_private_bal_input" in st.session_state:
-        st.session_state.pension_settings.private_pension_balance = float(st.session_state.pension_private_bal_input)
-    if "pension_private_mo_input" in st.session_state:
-        st.session_state.pension_settings.private_pension_monthly_contribution = float(st.session_state.pension_private_mo_input)
-    if "pension_private_ret_input" in st.session_state:
-        st.session_state.pension_settings.private_pension_expected_return = float(st.session_state.pension_private_ret_input)
-    if "pension_private_acc_slider" in st.session_state:
-        st.session_state.pension_settings.private_pension_access_age = int(st.session_state.pension_private_acc_slider)
-    if "pension_mff_enabled" in st.session_state:
-        st.session_state.pension_settings.my_future_fund_enabled = bool(st.session_state.pension_mff_enabled)
-    if "pension_mff_bal_input" in st.session_state:
-        st.session_state.pension_settings.my_future_fund_balance = float(st.session_state.pension_mff_bal_input)
-    if "pension_mff_emp_input" in st.session_state:
-        st.session_state.pension_settings.my_future_fund_employee_monthly = float(st.session_state.pension_mff_emp_input)
-    if "pension_mff_ret_input" in st.session_state:
-        st.session_state.pension_settings.my_future_fund_expected_return = float(st.session_state.pension_mff_ret_input)
+def main():
+    init_session_state()
+    lang: Language = "en"  # Fixed to English as requested
+    current_year = get_current_year()
 
-    fire_inputs = FireInputs(
-        mode=st.session_state.mode,
-        current_age=st.session_state.current_age,
-        target_retirement_age=st.session_state.target_retirement_age,
-        life_expectancy=st.session_state.life_expectancy,
-        target_monthly_disposable_income=st.session_state.target_monthly_income,
-        assets=st.session_state.assets,
-        monthly_savings=st.session_state.monthly_savings,
-        annual_savings_increase_rate=st.session_state.annual_savings_increase_rate,
-        safe_withdrawal_rate=st.session_state.safe_withdrawal_rate,
-        scenario=st.session_state.scenario,
-        tax_settings=st.session_state.tax_settings,
-        pension_settings=st.session_state.pension_settings,
-    )
-
-    result = simulate_fire(fire_inputs, lang)
-
-    # 4. 4 Full-Width Key Metric Cards (Ireland specific)
-    render_metric_cards(
-        result=result,
-        safe_withdrawal_rate=st.session_state.safe_withdrawal_rate,
-        country="IE",
+    # 1. Header with Ireland branding and light theme
+    render_header(
+        current_country=st.session_state.tax_settings.country,
         lang=lang,
+        on_reset_defaults=handle_reset_defaults,
     )
 
-    st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
+    notice = st.session_state.pop("plan_notice", None)
+    if notice:
+        (st.success if notice[0] == "success" else st.error)(notice[1])
 
-    # 5. Main 2-Column Layout (Configurator vs Visualization/Breakdown)
+    # 2. Page skeleton. The share panel and the metric cards sit above the inputs on the page, but
+    #    they are filled in at the end, once the inputs have been read, so they never lag behind.
+    share_slot = st.container()
+    cards_slot = st.container()
+    st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
     col_inputs, col_viz = st.columns([5, 7], gap="medium")
 
-    # Left Column: Inputs & Controls
+    # 3. Left column: inputs & controls. Each one updates the model in session state.
     with col_inputs:
         # Calculation Strategy & Target
         with st.container(border=True):
             (
-                new_mode,
-                new_target_inc,
-                new_assets,
-                new_monthly_sav,
-                new_sav_inc,
-                new_cur_age,
-                new_ret_age,
-                new_life_exp,
+                st.session_state.mode,
+                st.session_state.target_monthly_income,
+                st.session_state.assets,
+                st.session_state.monthly_savings,
+                st.session_state.annual_savings_increase_rate,
+                st.session_state.current_age,
+                st.session_state.target_retirement_age,
+                st.session_state.life_expectancy,
             ) = render_bidirectional_inputs(
                 mode=st.session_state.mode,
                 target_monthly_income=st.session_state.target_monthly_income,
@@ -310,23 +224,15 @@ def main():
                 life_expectancy=st.session_state.life_expectancy,
                 lang=lang,
             )
-            st.session_state.mode = new_mode
-            st.session_state.target_monthly_income = new_target_inc
-            st.session_state.assets = new_assets
-            st.session_state.monthly_savings = new_monthly_sav
-            st.session_state.annual_savings_increase_rate = new_sav_inc
-            st.session_state.current_age = new_cur_age
-            st.session_state.target_retirement_age = new_ret_age
-            st.session_state.life_expectancy = new_life_exp
 
-        # Safe Withdrawal Rate (SWR) with complete untruncated benchmark explanations
+        # Safe Withdrawal Rate (SWR)
         with st.container(border=True):
             st.session_state.safe_withdrawal_rate = render_swr_control(
                 current_swr=st.session_state.safe_withdrawal_rate,
                 lang=lang,
             )
 
-        # Irish Pensions: Private Pension (PRSA) & MyFutureFund Auto-Enrolment
+        # Irish Pensions: State Pension, Private Pension (PRSA) & MyFutureFund Auto-Enrolment
         with st.container(border=True):
             st.session_state.pension_settings = render_pension_controls(
                 pension_settings=st.session_state.pension_settings,
@@ -350,8 +256,36 @@ def main():
                 lang=lang,
             )
 
-    # Right Column: Analysis Tabs (Chart & Breakdown vs Year-by-Year Table)
-    # Comparison screen tab has been removed in favor of direct portfolio option
+    # 4. Simulation, run with the values the inputs returned in this same run
+    fire_inputs = FireInputs(
+        mode=st.session_state.mode,
+        current_age=st.session_state.current_age,
+        target_retirement_age=st.session_state.target_retirement_age,
+        life_expectancy=st.session_state.life_expectancy,
+        target_monthly_disposable_income=st.session_state.target_monthly_income,
+        assets=st.session_state.assets,
+        monthly_savings=st.session_state.monthly_savings,
+        annual_savings_increase_rate=st.session_state.annual_savings_increase_rate,
+        safe_withdrawal_rate=st.session_state.safe_withdrawal_rate,
+        scenario=st.session_state.scenario,
+        tax_settings=st.session_state.tax_settings,
+        pension_settings=st.session_state.pension_settings,
+    )
+    result = simulate_fire(fire_inputs, lang)
+
+    # 5. Fill the slots above the inputs
+    with share_slot:
+        render_share_panel(lang)
+
+    with cards_slot:
+        render_metric_cards(
+            result=result,
+            safe_withdrawal_rate=st.session_state.safe_withdrawal_rate,
+            country="IE",
+            lang=lang,
+        )
+
+    # 6. Right column: chart & breakdown, year-by-year table
     with col_viz:
         tab_chart, tab_table = st.tabs(
             [t("tabChart", lang), t("tabTable", lang)]
@@ -381,7 +315,7 @@ def main():
                     lang=lang,
                 )
 
-    # 6. Footer & Client-Side Privacy Disclaimer
+    # 7. Footer & disclaimer
     st.markdown("---")
     st.markdown(
         f"""
@@ -393,7 +327,7 @@ def main():
                 {t('footerDisclaimer', lang)}
             </p>
             <p style="margin: 4px 0 0 0; font-size: 0.68rem; color: #64748b;">
-                All projections and calculations run locally • No data stored on server • Budget 2027
+                No account needed • Inputs are not saved by this app • Budget 2027 figures, subject to legislation
             </p>
         </div>
         """,

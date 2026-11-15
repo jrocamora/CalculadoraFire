@@ -1,3 +1,4 @@
-streamlit>=1.35.0
-plotly>=5.20.0
-pandas>=2.0.0
+# Versions provades. Actualitza-les juntes i torna a provar l'app abans de publicar.
+streamlit==1.56.0
+plotly==7.1.0
+pandas==3.0.2

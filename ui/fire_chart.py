@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import plotly.graph_objects as go
 import streamlit as st
+from ui.keys import k
 from config.translations import Language, t
 from models.types import PensionSettings, YearProjection
 
@@ -46,7 +47,7 @@ def render_fire_chart(
     show_real = st.toggle(
         t("chartRealPurchasingPower", lang),
         value=True,
-        key="toggle_show_real_curve",
+        key=k("toggle_show_real_curve"),
     )
 
     ages = [p.age for p in projections]
@@ -194,4 +195,4 @@ def render_fire_chart(
         height=450,
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")

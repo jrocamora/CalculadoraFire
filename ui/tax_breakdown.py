@@ -1,13 +1,17 @@
 """
-Targeta de desglossament de la retirada anual i impacte fiscal irlandès.
-Elimina qualsevol menció de Catalunya o Wealth Tax quan s'aplica Irlanda.
+Targeta de desglossament del primer any de jubilació sota la fiscalitat irlandesa.
+Les xifres surten de la mateixa simulació any a any (en euros d'avui), de manera que
+brut - impostos = net quadra amb les targetes i la taula.
 """
 from __future__ import annotations
 
 import streamlit as st
 from config.translations import Language, t
-from engine.tax_calculators import compute_annual_tax_for_withdrawal
 from models.types import FireCalculationResult, TaxSettings
+
+
+def _eur(val: float) -> str:
+    return f"€{round(val):,}"
 
 
 def render_tax_breakdown_card(
@@ -15,21 +19,14 @@ def render_tax_breakdown_card(
     tax_settings: TaxSettings,
     lang: Language,
 ):
-    """Renderitza el desglossament de cada euro retirat en fase de jubilació sota la fiscalitat irlandesa."""
-    annual_gross = result.annual_gross_withdrawal_needed
+    """Renderitza el desglossament de cada euro retirat el primer any de jubilació."""
+    annual_gross = result.retirement_year_gross
     annual_tax = result.annual_tax_at_retirement
-    annual_net = result.monthly_disposable_target * 12.0
+    annual_net = max(0.0, annual_gross - annual_tax)
 
     gross_denom = max(1.0, annual_gross)
     net_ratio = min(100.0, max(0.0, (annual_net / gross_denom) * 100.0))
     tax_ratio = min(100.0, max(0.0, (annual_tax / gross_denom) * 100.0))
-
-    tax_comp = compute_annual_tax_for_withdrawal(
-        annual_gross,
-        tax_settings,
-        result.fire_number_nominal,
-        lang,
-    )
 
     st.markdown(
         f"""
@@ -51,7 +48,7 @@ def render_tax_breakdown_card(
             <div style="text-align: right;">
                 <span style="font-size: 0.72rem; color: #64748b; display: block;">{t('grossAnnualWithdrawal', lang)}</span>
                 <span style="font-size: 1.15rem; font-weight: 800; color: #0f172a; font-family: monospace;">
-                    {annual_gross:,.0f} €{t('perYear', lang)}
+                    {_eur(annual_gross)}{t('perYear', lang)}
                 </span>
             </div>
         </div>
@@ -59,16 +56,15 @@ def render_tax_breakdown_card(
         unsafe_allow_html=True,
     )
 
-    # Barra visual proporcional
     st.markdown(
         f"""
         <div style="margin: 12px 0;">
             <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: 700; margin-bottom: 6px;">
                 <span style="color: #059669;">
-                    🪙 {t('netInPocket', lang)} {net_ratio:.1f}% ({annual_net:,.0f} €)
+                    🪙 {t('netInPocket', lang)} {net_ratio:.1f}% ({_eur(annual_net)})
                 </span>
                 <span style="color: #e11d48;">
-                    📉 {t('taxesPaid', lang)} {tax_ratio:.1f}% ({annual_tax:,.0f} €)
+                    📉 {t('taxesPaid', lang)} {tax_ratio:.1f}% ({_eur(annual_tax)})
                 </span>
             </div>
             <div style="
@@ -84,15 +80,26 @@ def render_tax_breakdown_card(
         unsafe_allow_html=True,
     )
 
-    # Explicació narrativa oficial
+    if result.fire_reachable:
+        when = f"your first year of retirement (age {result.age_at_fire})"
+    else:
+        when = "an estimate, because the target is not reached within the plan"
+    threshold = float(getattr(tax_settings, "ireland_investment_account_threshold", 50000.0))
+    acct_rate = float(getattr(tax_settings, "ireland_investment_account_rate", 1.0))
+    exit_rate = float(getattr(tax_settings, "ireland_exit_tax_rate", 35.0)) + (tax_settings.tax_reform_change_rate or 0.0)
+    cgt_rate = float(getattr(tax_settings, "ireland_cgt_rate", 31.0)) + (tax_settings.tax_reform_change_rate or 0.0)
     st.markdown(
         f"""
         <div style="
             background: #f8fafc; border: 1px solid #e2e8f0;
             border-radius: 12px; padding: 14px; margin-top: 10px;
         ">
-            <div style="font-size: 0.78rem; color: #334155; line-height: 1.5; margin-bottom: 4px;">
-                ℹ️ {tax_comp.explanation}
+            <div style="font-size: 0.78rem; color: #334155; line-height: 1.5;">
+                ℹ️ Figures for {when}, in today's euros. Withdrawals come first from the Investment Account
+                (no tax on withdrawal; {acct_rate:g}% a year on the balance above {_eur(threshold)}), then from shares
+                and other assets ({cgt_rate:g}% CGT on the gain, €1,270 yearly exemption), then from ETFs
+                ({exit_rate:g}% Exit Tax on the gain). Pension drawdowns are taxed as income; the State Pension is not
+                taxed in this model.
             </div>
         </div>
         """,
@@ -100,36 +107,11 @@ def render_tax_breakdown_card(
     )
 
     c1, c2, c3, c4 = st.columns(4)
-
-    if tax_settings.ireland_asset_type == "budget_2027_account":
-        with c1:
-            st.metric("Tax-Free Allowance", "€50,000")
-        with c2:
-            st.metric("Annual 1% Charge (>€50k)", f"{tax_comp.total_tax:,.0f} €")
-        with c3:
-            st.metric("CGT / Exit Tax on Growth", "0.0 € (Exempt)")
-        with c4:
-            st.metric("Effective Drag", f"{tax_comp.effective_tax_rate * 100.0:.1f}%")
-
-    elif tax_settings.ireland_asset_type == "etf_exit_tax":
-        exit_rate_label = f"{getattr(tax_settings, 'ireland_exit_tax_rate', 35.0):.0f}%"
-        with c1:
-            st.metric(t("taxableGains", lang), f"{tax_comp.taxable_gains:,.0f} €")
-        with c2:
-            st.metric(f"Exit Tax ({exit_rate_label})", f"{tax_comp.total_tax:,.0f} €")
-        with c3:
-            st.metric("Deemed Disposal", "Active (8-Year)" if tax_settings.ireland_simulate_deemed_disposal else "Disabled")
-        with c4:
-            st.metric(t("totalEffectiveRate", lang), f"{tax_comp.effective_tax_rate * 100.0:.1f}%")
-
-    else:
-        # individual_shares_cgt
-        cgt_rate_label = f"{getattr(tax_settings, 'ireland_cgt_rate', 31.0):.0f}%"
-        with c1:
-            st.metric(t("taxableGains", lang), f"{tax_comp.taxable_gains:,.0f} €")
-        with c2:
-            st.metric(f"CGT Quota ({cgt_rate_label})", f"{tax_comp.total_tax:,.0f} €")
-        with c3:
-            st.metric("Personal Exemption", "€1,270 / yr")
-        with c4:
-            st.metric(t("totalEffectiveRate", lang), f"{tax_comp.effective_tax_rate * 100.0:.1f}%")
+    with c1:
+        st.metric("Investment Account charge", _eur(result.retirement_year_account_charge))
+    with c2:
+        st.metric("CGT (shares & other)", _eur(result.retirement_year_cgt))
+    with c3:
+        st.metric("Exit Tax (ETFs)", _eur(result.retirement_year_exit_tax))
+    with c4:
+        st.metric("Income tax on pensions", _eur(result.retirement_year_pension_tax))

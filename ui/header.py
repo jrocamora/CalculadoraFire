@@ -4,6 +4,7 @@ Header component and global light-theme CSS styles for FIRE Calculator Ireland.
 from __future__ import annotations
 
 import streamlit as st
+from ui.keys import k
 from config.translations import Language, t
 from models.types import CountryCode
 
@@ -160,7 +161,7 @@ def render_header(
     lang: Language = "en",
     on_reset_defaults=None,
 ):
-    """Renders the top navigation bar with Ireland branding, light theme styling, and privacy guarantee."""
+    """Renders the top navigation bar with Ireland branding, light theme styling, and privacy note."""
     inject_custom_css()
 
     col_title, col_privacy, col_reset = st.columns([6.2, 4.0, 1.8], gap="small")
@@ -210,7 +211,7 @@ def render_header(
                 justify-content: flex-end;
             ">
                 <span>🔒</span>
-                <span>Calculations run locally • No data stored</span>
+                <span>No account needed • Your inputs are not saved by this app</span>
             </div>
             """,
             unsafe_allow_html=True,
@@ -218,6 +219,9 @@ def render_header(
 
     with col_reset:
         st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
-        if st.button("↺ " + t("resetValues", lang), key="reset_button_header", use_container_width=True):
-            if on_reset_defaults:
-                on_reset_defaults()
+        st.button(
+            "↺ " + t("resetValues", lang),
+            key=k("reset_button_header"),
+            width="stretch",
+            on_click=on_reset_defaults,
+        )

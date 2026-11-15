@@ -51,9 +51,11 @@ class PensionSettings:
 
     # State Pension (Contributory - Pensió Pública de l'Estat)
     state_pension_enabled: bool = True
-    state_pension_monthly_amount: float = 1253.0  # ~289.30 €/setmana (Taxa màxima d'Irlanda ~15.000 €/any)
+    state_pension_monthly_amount: float = 1340.0  # 309,30 €/setmana des de gener 2027 (Budget 2027)
     state_pension_access_age: int = 66  # Edat legal d'accés a Irlanda
 
+    # Tipus efectiu d'impost sobre la renda aplicat a les retirades d'ARF / MyFutureFund (%)
+    pension_income_tax_rate: float = 20.0
 
 
 # ---------------------------------------------------------------------------
@@ -170,11 +172,25 @@ class FireCalculationResult:
     annual_gross_withdrawal_needed: float = 0.0
     annual_tax_at_retirement: float = 0.0
     effective_tax_rate_at_retirement: float = 0.0
+    # Primer any de jubilació, en euros d'avui (o estimació si l'objectiu no s'assoleix)
+    retirement_year_gross: float = 0.0
+    retirement_year_account_charge: float = 0.0
+    retirement_year_exit_tax: float = 0.0
+    retirement_year_cgt: float = 0.0
+    retirement_year_pension_tax: float = 0.0
+    retirement_year_state_pension: float = 0.0
 
     years_to_fire: int = 0
     age_at_fire: int = 0
     calendar_year_at_fire: int = 0
     is_already_fire: bool = False
+    # False quan l'objectiu no s'assoleix dins l'horitzó del pla (fins a l'esperança de vida)
+    fire_reachable: bool = True
+    # True si algun any de jubilació no es pot cobrir la despesa (p.ex. pensions encara bloquejades)
+    has_income_shortfall: bool = False
+    # True si el FIRE number ja s'assolia abans però calia esperar que la cartera líquida pogués
+    # cobrir la despesa fins al desbloqueig de les pensions
+    waited_for_pension_unlock: bool = False
 
     current_total_net_worth: float = 0.0
     projected_portfolio_at_fire: float = 0.0

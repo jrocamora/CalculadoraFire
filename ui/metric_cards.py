@@ -86,6 +86,11 @@ def render_metric_cards(
             if result.tax_free_lump_sum_total > 0
             else ""
         )
+        if result.waited_for_pension_unlock:
+            lump_sum_html += (
+                "<div style='font-size: 0.68rem; color: #b45309; margin-top: 4px;'>⏳ Your total reaches the target "
+                "earlier, but until then your accessible savings could not cover the years before your pensions unlock.</div>"
+            )
         # NOTE: optional fragments are placed inline (never alone on a line): a blank line inside
         # the HTML block would end it and Markdown would print the rest as literal text.
 

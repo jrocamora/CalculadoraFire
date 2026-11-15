@@ -17,6 +17,15 @@ streamlit run app.py
 
 Obre el navegador a `http://localhost:8501`.
 
+## 🧪 Proves
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+`tests/test_engine.py` prova el motor de simulació i `tests/test_app.py` fa servir la pàgina sencera sense navegador (`streamlit.testing`): controls, presets, reset, enllaços i càrrega de plans.
+
 ## ☁️ Publicar a Streamlit Community Cloud
 
 1. Puja el repositori a GitHub.
@@ -43,6 +52,7 @@ Streamlit executa el càlcul **al servidor**: les xifres que introdueix l'usuari
 - El rendiment de cada pot és la mitjana ponderada del rendiment esperat dels seus actius. L'escenari macro el desplaça respecte al 7% base.
 - El cost d'adquisició de cada actiu determina quina part de cada retirada és plusvàlua.
 - En jubilació es retira primer del Compte d'Inversió, després de les accions i altres, i finalment dels ETFs.
+- **Quan et pots jubilar:** el primer any en què la cartera total arriba al FIRE number *i* la cartera líquida pot pagar la despesa fins que es desbloquegen les pensions. Els diners de pensió bloquejats no serveixen per jubilar-se abans d'hora; si cal esperar, la targeta «Time to FIRE» ho indica.
 
 **Pensions** (desactivades per defecte):
 
@@ -66,6 +76,8 @@ Streamlit executa el càlcul **al servidor**: les xifres que introdueix l'usuari
 ```
 ├── app.py                  # Orquestrador Streamlit
 ├── requirements.txt        # Versions provades
+├── requirements-dev.txt    # + pytest
+├── tests/                  # Proves del motor i de la pàgina
 ├── .streamlit/config.toml  # Tema clar
 ├── config/                 # Valors per defecte i textos
 ├── models/types.py         # Dataclasses

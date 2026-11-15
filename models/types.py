@@ -188,6 +188,9 @@ class FireCalculationResult:
     fire_reachable: bool = True
     # True si algun any de jubilació no es pot cobrir la despesa (p.ex. pensions encara bloquejades)
     has_income_shortfall: bool = False
+    # True si el FIRE number ja s'assolia abans però calia esperar que la cartera líquida pogués
+    # cobrir la despesa fins al desbloqueig de les pensions
+    waited_for_pension_unlock: bool = False
 
     current_total_net_worth: float = 0.0
     projected_portfolio_at_fire: float = 0.0

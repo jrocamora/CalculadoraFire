@@ -5,6 +5,7 @@ Permet modelar el creixement lliure d'impostos, l'aportació d'empresa i Estat, 
 from __future__ import annotations
 
 import streamlit as st
+from ui.keys import k
 from config.translations import Language, t
 from models.types import PensionSettings
 
@@ -58,32 +59,36 @@ def render_pension_controls(
         sp_enabled = st.checkbox(
             t("statePensionEnableCheckbox", lang),
             value=bool(getattr(pension_settings, "state_pension_enabled", False)),
-            key="pension_state_enabled",
+            key=k("pension_state_enabled"),
         )
 
         st.caption(t("statePensionDesc", lang))
 
-        # Preset buttons row
-        col_pr1, col_pr2, col_pr3, col_pr4 = st.columns(4)
-        with col_pr1:
-            if st.button(t("statePensionFullRate", lang), key="preset_sp_full", disabled=not sp_enabled, use_container_width=True):
-                st.session_state["pension_state_mo_input"] = 1253.0
-        with col_pr2:
-            if st.button(t("statePension75Rate", lang), key="preset_sp_75", disabled=not sp_enabled, use_container_width=True):
-                st.session_state["pension_state_mo_input"] = 940.0
-        with col_pr3:
-            if st.button(t("statePension50Rate", lang), key="preset_sp_50", disabled=not sp_enabled, use_container_width=True):
-                st.session_state["pension_state_mo_input"] = 627.0
-        with col_pr4:
-            if st.button(t("statePensionCoupleRate", lang), key="preset_sp_couple", disabled=not sp_enabled, use_container_width=True):
-                st.session_state["pension_state_mo_input"] = 2507.0
+        # Preset buttons row (callbacks run before the number input below is created)
+        sp_key = k("pension_state_mo_input")
 
-        current_sp_mo = float(
-            st.session_state.get(
-                "pension_state_mo_input",
-                getattr(pension_settings, "state_pension_monthly_amount", 1253.0),
-            )
-        )
+        def _set_sp(amount: float):
+            st.session_state[sp_key] = amount
+
+        if sp_key not in st.session_state:
+            st.session_state[sp_key] = float(getattr(pension_settings, "state_pension_monthly_amount", 1340.0))
+
+        col_pr1, col_pr2, col_pr3, col_pr4 = st.columns(4)
+        for col, label, amount, key in (
+            (col_pr1, t("statePensionFullRate", lang), 1340.0, "preset_sp_full"),
+            (col_pr2, t("statePension75Rate", lang), 1005.0, "preset_sp_75"),
+            (col_pr3, t("statePension50Rate", lang), 670.0, "preset_sp_50"),
+            (col_pr4, t("statePensionCoupleRate", lang), 2680.0, "preset_sp_couple"),
+        ):
+            with col:
+                st.button(
+                    label,
+                    key=k(key),
+                    disabled=not sp_enabled,
+                    width="stretch",
+                    on_click=_set_sp,
+                    args=(amount,),
+                )
 
         col_sp_val, col_sp_age = st.columns(2)
         with col_sp_val:
@@ -91,11 +96,10 @@ def render_pension_controls(
                 f"{t('statePensionMonthlyLabel', lang)} (€/mo)",
                 min_value=0.0,
                 max_value=15000.0,
-                value=current_sp_mo,
                 step=50.0,
-                key="pension_state_mo_input",
+                key=k("pension_state_mo_input"),
                 disabled=not sp_enabled,
-                help="Standard maximum rate in Ireland is €289.30/week (~€1,253/month, ~€15,043/year). You can adjust this to your expected personal entitlement, international prorate, or couple total.",
+                help="Full contributory rate is €309.30/week from January 2027 (~€1,340/month). Adjust it to your expected entitlement, an international pro-rata amount, or a couple total.",
             )
             annual_sp = new_sp_mo * 12.0
             st.caption(
@@ -109,7 +113,7 @@ def render_pension_controls(
                 max_value=70,
                 value=int(getattr(pension_settings, "state_pension_access_age", 66)),
                 step=1,
-                key="pension_state_age_slider",
+                key=k("pension_state_age_slider"),
                 disabled=not sp_enabled,
                 help="Standard statutory retirement age in Ireland is 66. You can choose to defer up to age 70 for enhanced weekly rates under Irish pension reform.",
             )
@@ -134,7 +138,7 @@ def render_pension_controls(
         p_enabled = st.checkbox(
             "Enable Private Pension / PRSA",
             value=bool(getattr(pension_settings, "private_pension_enabled", False)),
-            key="pension_private_enabled",
+            key=k("pension_private_enabled"),
         )
 
         st.caption(t("privatePensionDesc", lang))
@@ -147,7 +151,7 @@ def render_pension_controls(
                 max_value=10000000.0,
                 value=float(pension_settings.private_pension_balance),
                 step=2500.0,
-                key="pension_private_bal_input",
+                key=k("pension_private_bal_input"),
                 disabled=not p_enabled,
             )
         with col_mo:
@@ -157,7 +161,7 @@ def render_pension_controls(
                 max_value=20000.0,
                 value=float(pension_settings.private_pension_monthly_contribution),
                 step=50.0,
-                key="pension_private_mo_input",
+                key=k("pension_private_mo_input"),
                 disabled=not p_enabled,
             )
 
@@ -169,7 +173,7 @@ def render_pension_controls(
                 max_value=15.0,
                 value=float(pension_settings.private_pension_expected_return),
                 step=0.5,
-                key="pension_private_ret_input",
+                key=k("pension_private_ret_input"),
                 disabled=not p_enabled,
             )
         with col_acc:
@@ -179,7 +183,7 @@ def render_pension_controls(
                 max_value=65,
                 value=int(pension_settings.private_pension_access_age),
                 step=1,
-                key="pension_private_acc_slider",
+                key=k("pension_private_acc_slider"),
                 disabled=not p_enabled,
                 help="Occupational schemes typically permit access from age 50 upon leaving employment; PRSAs typically from age 60.",
             )
@@ -201,7 +205,7 @@ def render_pension_controls(
         mff_enabled = st.checkbox(
             "Enable MyFutureFund (National Auto-Enrolment)",
             value=bool(getattr(pension_settings, "my_future_fund_enabled", False)),
-            key="pension_mff_enabled",
+            key=k("pension_mff_enabled"),
         )
 
         st.caption(t("myFutureFundDesc", lang))
@@ -214,7 +218,7 @@ def render_pension_controls(
                 max_value=5000000.0,
                 value=float(pension_settings.my_future_fund_balance),
                 step=1000.0,
-                key="pension_mff_bal_input",
+                key=k("pension_mff_bal_input"),
                 disabled=not mff_enabled,
             )
         with col_mff_emp:
@@ -224,7 +228,7 @@ def render_pension_controls(
                 max_value=4000.0,
                 value=float(pension_settings.my_future_fund_employee_monthly),
                 step=25.0,
-                key="pension_mff_emp_input",
+                key=k("pension_mff_emp_input"),
                 disabled=not mff_enabled,
             )
 
@@ -264,7 +268,7 @@ def render_pension_controls(
                 max_value=15.0,
                 value=float(pension_settings.my_future_fund_expected_return),
                 step=0.5,
-                key="pension_mff_ret_input",
+                key=k("pension_mff_ret_input"),
                 disabled=not mff_enabled,
             )
         with col_mff_age:
@@ -281,6 +285,19 @@ def render_pension_controls(
                 """,
                 unsafe_allow_html=True,
             )
+
+    # Income tax on pension drawdowns (ARF / MyFutureFund). The 25% lump sums stay tax-free.
+    new_pension_tax = st.number_input(
+        "Income tax on pension drawdowns (%)",
+        min_value=0.0,
+        max_value=55.0,
+        value=float(getattr(pension_settings, "pension_income_tax_rate", 20.0)),
+        step=1.0,
+        key=k("pension_income_tax_input"),
+        disabled=not (p_enabled or mff_enabled),
+        help="Effective rate (income tax + USC) applied to ARF and MyFutureFund withdrawals, which are taxed as "
+        "income in Ireland. The State Pension is not taxed in this model. Adjust to your own situation.",
+    )
 
     # 4. Bridge Strategy Overview
     with tab_bridge:
@@ -313,22 +330,25 @@ def render_pension_controls(
                 f"€{new_sp_mo:,.0f}/mo State + MFF" if sp_enabled else "MyFutureFund",
             )
 
+    # Values are kept even while a pillar is switched off (the *_enabled flags decide whether the
+    # simulation uses them), so re-enabling a pillar or reloading the form does not show zeros.
     return PensionSettings(
         private_pension_enabled=p_enabled,
-        private_pension_balance=new_p_bal if p_enabled else 0.0,
-        private_pension_monthly_contribution=new_p_mo if p_enabled else 0.0,
-        private_pension_expected_return=new_p_ret if p_enabled else 7.0,
-        private_pension_access_age=new_p_acc if p_enabled else 50,
+        private_pension_balance=new_p_bal,
+        private_pension_monthly_contribution=new_p_mo,
+        private_pension_expected_return=new_p_ret,
+        private_pension_access_age=new_p_acc,
         private_pension_tax_free_lump_sum_pct=25.0,
         my_future_fund_enabled=mff_enabled,
-        my_future_fund_balance=new_mff_bal if mff_enabled else 0.0,
-        my_future_fund_employee_monthly=new_mff_emp if mff_enabled else 0.0,
+        my_future_fund_balance=new_mff_bal,
+        my_future_fund_employee_monthly=new_mff_emp,
         my_future_fund_employer_match_monthly=match_employer if mff_enabled else 0.0,
         my_future_fund_state_topup_monthly=topup_state if mff_enabled else 0.0,
-        my_future_fund_expected_return=new_mff_ret if mff_enabled else 7.0,
+        my_future_fund_expected_return=new_mff_ret,
         my_future_fund_access_age=66,
         my_future_fund_tax_free_lump_sum_pct=25.0,
         state_pension_enabled=sp_enabled,
-        state_pension_monthly_amount=new_sp_mo if sp_enabled else 0.0,
-        state_pension_access_age=new_sp_age if sp_enabled else 66,
+        state_pension_monthly_amount=new_sp_mo,
+        state_pension_access_age=new_sp_age,
+        pension_income_tax_rate=new_pension_tax,
     )

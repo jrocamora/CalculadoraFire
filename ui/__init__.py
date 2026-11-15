@@ -1,5 +1,4 @@
 # UI components package
-from ui.country_comparison import render_country_comparison
 from ui.country_tax import render_country_tax_selector
 from ui.fire_chart import render_fire_chart
 from ui.header import render_header
@@ -21,6 +20,5 @@ __all__ = [
     "render_macro_scenario_selector",
     "render_fire_chart",
     "render_tax_breakdown_card",
-    "render_country_comparison",
     "render_yearly_table",
 ]

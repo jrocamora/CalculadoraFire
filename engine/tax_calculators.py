@@ -135,7 +135,10 @@ def compute_annual_tax_for_withdrawal(
     tax_settings: TaxSettings,
     portfolio_value: float = 0.0,
     lang: str = "ca",
+    gain_ratio: float | None = None,
 ) -> TaxComputationResult:
+    """`gain_ratio` is the share of the withdrawal that is taxable gain (0-1).
+    When omitted, a 60% estimate is used for Ireland and Andorra."""
     is_en = lang == "en"
 
     if gross_withdrawal <= 0:
@@ -207,7 +210,9 @@ def compute_annual_tax_for_withdrawal(
             # First €50k tax-free, 1% annual tax on portfolio value above €50k.
             # 0% Exit Tax & 0% CGT on withdrawals! No deemed disposal!
             threshold = getattr(tax_settings, "ireland_investment_account_threshold", 50000.0)
-            account_rate = max(0.0, (getattr(tax_settings, "ireland_investment_account_rate", 1.0) + reform_mod) / 100.0)
+            # The reform slider moves gains-tax rates in percentage points; it is not
+            # applied to this small annual balance charge (1% + 5pp would be a 6% wealth tax).
+            account_rate = max(0.0, getattr(tax_settings, "ireland_investment_account_rate", 1.0) / 100.0)
             taxable_above = max(0.0, portfolio_value - threshold)
             annual_charge = taxable_above * account_rate
             total_tax = annual_charge
@@ -216,7 +221,7 @@ def compute_annual_tax_for_withdrawal(
             if is_en:
                 explanation = (
                     f"Ireland (Budget 2027 Investment Account): First €{round(threshold):,} is 100% tax-free. "
-                    f"Flat 1% annual tax on balance above €{round(threshold):,} (€{round(annual_charge):,} /yr). "
+                    f"Flat {account_rate * 100:g}% annual tax on balance above €{round(threshold):,} (€{round(annual_charge):,} /yr). "
                     f"Exempt from CGT, Exit Tax, and 8-year Deemed Disposal on withdrawals and growth."
                 )
             else:
@@ -238,7 +243,7 @@ def compute_annual_tax_for_withdrawal(
                 explanation=explanation,
             )
 
-        estimated_gain_ratio = 0.6
+        estimated_gain_ratio = 0.6 if gain_ratio is None else max(0.0, min(1.0, gain_ratio))
         taxable_gains = gross_withdrawal * estimated_gain_ratio
 
         if tax_settings.ireland_asset_type == "etf_exit_tax":

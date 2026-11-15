@@ -5,6 +5,7 @@ Port fidel de BiDirectionalInputs.tsx.
 from __future__ import annotations
 
 import streamlit as st
+from ui.keys import k
 from config.translations import Language, t
 from models.types import CalculationMode, PortfolioAsset
 
@@ -62,7 +63,7 @@ def render_bidirectional_inputs(
         index=0 if mode == "target_spending" else 1,
         horizontal=True,
         label_visibility="collapsed",
-        key="calc_mode_radio",
+        key=k("calc_mode_radio"),
     )
 
     new_target_income = target_monthly_income
@@ -88,33 +89,69 @@ def render_bidirectional_inputs(
             unsafe_allow_html=True,
         )
 
+        # The exact-value box is the source of truth (it has the wider range); the slider and
+        # the preset buttons write into it through callbacks so the three always agree.
+        input_key = k("target_monthly_income_input")
+        slider_key = k("target_monthly_income_slider")
+        slider_min, slider_max = 800.0, 12000.0
+
+        def _clamp_to_slider(val: float) -> float:
+            return min(slider_max, max(slider_min, float(val)))
+
+        def _set_target(val: float):
+            st.session_state[input_key] = float(val)
+            st.session_state[slider_key] = _clamp_to_slider(val)
+
+        def _on_input_change():
+            st.session_state[slider_key] = _clamp_to_slider(st.session_state[input_key])
+
+        def _on_slider_change():
+            st.session_state[input_key] = float(st.session_state[slider_key])
+
+        # These two widgets are written to from callbacks, so they are seeded through session
+        # state (not `value=`): mixing both makes Streamlit log a warning.
+        if input_key not in st.session_state:
+            st.session_state[input_key] = min(30000.0, max(500.0, float(target_monthly_income)))
+        if slider_key not in st.session_state:
+            st.session_state[slider_key] = _clamp_to_slider(st.session_state[input_key])
+
         col_preset1, col_preset2, col_val = st.columns([1, 1, 2])
         label_2500 = "€2,500 " if lang == "en" else "2.500 € "
         label_5000 = "€5,000 " if lang == "en" else "5.000 € "
         with col_preset1:
-            if st.button(label_2500 + t("commonTarget", lang).split("(")[-1].replace(")", ""), key="preset_2500", use_container_width=True):
-                new_target_income = 2500.0
+            st.button(
+                label_2500 + t("commonTarget", lang).split("(")[-1].replace(")", ""),
+                key=k("preset_2500"),
+                width="stretch",
+                on_click=_set_target,
+                args=(2500.0,),
+            )
         with col_preset2:
-            if st.button(label_5000 + t("fatFire", lang).split("(")[-1].replace(")", ""), key="preset_5000", use_container_width=True):
-                new_target_income = 5000.0
+            st.button(
+                label_5000 + t("fatFire", lang).split("(")[-1].replace(")", ""),
+                key=k("preset_5000"),
+                width="stretch",
+                on_click=_set_target,
+                args=(5000.0,),
+            )
         with col_val:
             new_target_income = st.number_input(
                 t("enterExactValue", lang),
                 min_value=500.0,
                 max_value=30000.0,
-                value=float(new_target_income),
                 step=100.0,
-                key="target_monthly_income_input",
+                key=input_key,
+                on_change=_on_input_change,
             )
 
         mo_suffix = "(€/mo)" if lang == "en" else "(€/mes)"
-        new_target_income = st.slider(
+        st.slider(
             f"{t('disposableIncomeTitle', lang)} {mo_suffix}",
-            min_value=800.0,
-            max_value=12000.0,
-            value=float(new_target_income),
+            min_value=slider_min,
+            max_value=slider_max,
             step=50.0,
-            key="target_monthly_income_slider",
+            key=slider_key,
+            on_change=_on_slider_change,
         )
 
     # Secció d'actius de la cartera (Portfolio Assets)
@@ -171,9 +208,9 @@ def render_bidirectional_inputs(
 
         def _sync_cost_basis(asset_id: str):
             """Resets cost basis to match current capital when capital is adjusted."""
-            new_val = st.session_state.get(f"asset_amount_{asset_id}")
+            new_val = st.session_state.get(k(f"asset_amount_{asset_id}"))
             if new_val is not None:
-                st.session_state[f"asset_cost_{asset_id}"] = float(new_val)
+                st.session_state[k(f"asset_cost_{asset_id}")] = float(new_val)
 
         updated_assets: list[PortfolioAsset] = []
         for i, a in enumerate(assets):
@@ -186,7 +223,7 @@ def render_bidirectional_inputs(
                     max_value=20000000.0,
                     value=float(a.current_amount),
                     step=1000.0,
-                    key=f"asset_amount_{a.id}",
+                    key=k(f"asset_amount_{a.id}"),
                     on_change=_sync_cost_basis,
                     args=(a.id,),
                 )
@@ -197,7 +234,7 @@ def render_bidirectional_inputs(
                     max_value=25.0,
                     value=float(a.expected_return_annual),
                     step=0.5,
-                    key=f"asset_ret_{a.id}",
+                    key=k(f"asset_ret_{a.id}"),
                 )
             with c_cost:
                 if a.category == "cash_deposits":
@@ -238,7 +275,7 @@ def render_bidirectional_inputs(
                         max_value=20000000.0,
                         value=float(a.cost_basis),
                         step=1000.0,
-                        key=f"asset_cost_{a.id}",
+                        key=k(f"asset_cost_{a.id}"),
                         help=cost_help,
                     )
             updated_assets.append(
@@ -265,7 +302,7 @@ def render_bidirectional_inputs(
             max_value=50000.0,
             value=float(monthly_savings),
             step=50.0,
-            key="monthly_savings_input",
+            key=k("monthly_savings_input"),
         )
         annual_sav_val = new_monthly_savings * 12
         annual_sav_fmt = f"€{annual_sav_val:,.0f}" if lang == "en" else f"{annual_sav_val:,.0f} €".replace(",", ".")
@@ -278,7 +315,7 @@ def render_bidirectional_inputs(
             max_value=15.0,
             value=float(annual_savings_increase_rate),
             step=0.5,
-            key="savings_increase_rate_input",
+            key=k("savings_increase_rate_input"),
         )
 
     col_age, col_ret_age, col_exp = st.columns(3)
@@ -289,25 +326,33 @@ def render_bidirectional_inputs(
             max_value=90,
             value=int(current_age),
             step=1,
-            key="current_age_input",
+            key=k("current_age_input"),
         )
     with col_ret_age:
+        # Keep an already-entered retirement age valid when the current age is raised past it
+        ret_key = k("target_ret_age_input")
+        if ret_key in st.session_state and st.session_state[ret_key] < int(new_current_age):
+            st.session_state[ret_key] = int(new_current_age)
         new_ret_age = st.number_input(
             f"{t('targetRetirementAgeLabel', lang)}",
             min_value=int(new_current_age),
             max_value=95,
             value=max(int(new_current_age), int(target_retirement_age)),
             step=1,
-            key="target_ret_age_input",
+            key=k("target_ret_age_input"),
         )
     with col_exp:
+        life_key = k("life_expectancy_input")
+        life_min = max(int(new_ret_age) + 1, 75)
+        if life_key in st.session_state and st.session_state[life_key] < life_min:
+            st.session_state[life_key] = life_min
         new_life_exp = st.number_input(
             f"{t('lifeExpectancyLabel', lang)}",
             min_value=max(int(new_ret_age) + 1, 75),
             max_value=110,
             value=max(int(new_ret_age) + 1, int(life_expectancy)),
             step=1,
-            key="life_expectancy_input",
+            key=k("life_expectancy_input"),
         )
 
     return (

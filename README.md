@@ -1,89 +1,77 @@
-# 🔥 Calculadora FIRE Pro (Streamlit)
+# 🇮🇪 FIRE Calculator Ireland (Budget 2027)
 
-Aplicació web interactiva per calcular la **Independència Financera i Jubilació Anticipada (FIRE)** tenint en compte la fiscalitat real a **Catalunya**, **Irlanda** i **Andorra**.
+Aplicació web (Python + Streamlit + Plotly) per planificar la **independència financera i la jubilació anticipada (FIRE)** amb la fiscalitat d'**Irlanda**, incloses les mesures anunciades al **Budget 2027**. La interfície és en anglès.
 
-Migrada de React/Vite/TypeScript a **Python + Streamlit + Plotly**.
+> Eina educativa i de simulació. No és assessorament financer, fiscal ni legal. Les xifres del Budget 2027 depenen de la Finance Bill: comprova-les amb Revenue abans de fer-les servir per decidir res.
 
 ---
 
 ## 🚀 Com executar en local
 
-1. **Instal·la les dependències**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+Cal Python 3.11 o posterior.
 
-2. **Inicia l'aplicació**:
-   ```bash
-   streamlit run app.py
-   ```
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
 
-3. Obre el navegador a `http://localhost:8501`.
+Obre el navegador a `http://localhost:8501`.
 
----
+## ☁️ Publicar a Streamlit Community Cloud
 
-## ☁️ Com hostejar GRATIS a Streamlit Community Cloud
+1. Puja el repositori a GitHub.
+2. A [share.streamlit.io](https://share.streamlit.io/), fes **New app**, tria el repositori, la branca `main` i el fitxer `app.py`.
+3. **Deploy**. Cada `git push` a `main` actualitza l'app.
 
-Pots hostejar aquesta aplicació de manera **100% gratuïta** a **[Streamlit Community Cloud](https://share.streamlit.io/)**:
+## 🔒 Privadesa
 
-1. Puja aquest repositori a **GitHub** (públic o privat).
-2. Entra a [share.streamlit.io](https://share.streamlit.io/) i inicia sessió amb el teu compte de GitHub.
-3. Fes clic a **"New app"**.
-4. Selecciona el teu repositori (`CalculadoraFire`), branca `main` o `master`, i fitxer principal `app.py`.
-5. Fes clic a **"Deploy"**.
-
-A partir d'aquí, qualsevol `git push` que facis s'actualitzarà automàticament al teu domini gratuït de Streamlit (`https://<el-teu-nom>-calculadorafire.streamlit.app`).
+Streamlit executa el càlcul **al servidor**: les xifres que introdueix l'usuari hi viatgen, però l'app no les desa ni demana cap compte, i es descarten en tancar la pàgina. L'enllaç per compartir porta totes les xifres codificades dins la URL, de manera que qualsevol persona que el tingui les pot llegir.
 
 ---
 
-## 🏛️ Funcionalitats fiscals incloses
+## 🏛️ Què modela
 
-- **Catalunya (CAT)**:
-  - Trams d'IRPF de l'Estalvi (19% a 28%) amb 50% tram autonòmic de la Generalitat.
-  - Càlcul sobre la plusvàlua latent real (el capital principal invertit no tributa).
-  - Impost sobre el Patrimoni propi de Catalunya amb mínim exempt de 500.000 € i escala progressiva (0,21% - 3,48%) amb escut fiscal del 60%.
-- **Irlanda (IE)**:
-  - Exit Tax del 41% en ETFs UCITS + Deemed Disposal cada 8 anys (opció 1/8 anual escalonat DCA o en bloc).
-  - Capital Gains Tax (CGT) del 33% en accions individuals amb exempció anual de 1.270 €.
-- **Andorra (AD)**:
-  - 0% d'impost en compravenda de borsa cotitzada internacional (<25%).
-  - Règim general de rendes de capital al 10% amb 3.000 € anuals exempts.
-  - Sense impost de patrimoni.
-- **Canvi de residència fiscal planificat**:
-  - Simula començar acumulant a Catalunya o Irlanda i passar a viure a Andorra en un any concret.
-- **Reforma fiscal**:
-  - Simula increments o reduccions generals en la tributació de l'estalvi (-5% a +10%).
+**Cartera líquida**, en tres pots amb fiscalitat pròpia:
+
+| Pot | Actius | Fiscalitat |
+|---|---|---|
+| Compte d'Inversió (Budget 2027) | Categoria «New Investment Account» | Obre l'1 de juliol de 2027, màxim 12.000 €/any (6.000 € el 2027). 1% anual sobre el saldo que supera 50.000 €. Retirades sense impost. |
+| ETFs / fons UCITS | Categoria «Index Funds / ETFs» | Exit Tax del 35% (38% el 2026) sobre la plusvàlua en retirar. Deemed Disposal opcional (1/8 anual o en bloc cada 8 anys). |
+| Altres | Accions, efectiu, immobles | CGT del 31% sobre la plusvàlua, amb 1.270 € d'exempció anual. |
+
+- L'opció «Where do your new monthly savings go?» decideix on van els estalvis nous. Amb el Compte d'Inversió, l'excés sobre el límit (i tot el que s'estalvia abans que obri) va a ETFs.
+- El rendiment de cada pot és la mitjana ponderada del rendiment esperat dels seus actius. L'escenari macro el desplaça respecte al 7% base.
+- El cost d'adquisició de cada actiu determina quina part de cada retirada és plusvàlua.
+- En jubilació es retira primer del Compte d'Inversió, després de les accions i altres, i finalment dels ETFs.
+
+**Pensions** (desactivades per defecte):
+
+- **State Pension**: 309,30 €/setmana des de gener de 2027 (~1.340 €/mes), a partir dels 66 anys. No tributa en aquest model.
+- **Pensió privada / PRSA**: creix sense impostos; en arribar a l'edat d'accés, el 25% (màxim 200.000 €) passa a la cartera líquida sense impost i la resta es retira com a ARF.
+- **MyFutureFund** (auto-enrolment): aportació de l'empresa igual a la teva i 1 € de l'Estat per cada 3 €; accés als 66 anys amb el mateix 25% exempt.
+- Les retirades d'ARF i MyFutureFund tributen a un tipus efectiu configurable (20% per defecte).
+
+**Altres controls**: taxa de retirada segura (SWR), escenaris macro (base, optimista, conservador, estrès amb caiguda els dos primers anys de jubilació), sensibilitat a reformes fiscals i taula any a any amb descàrrega CSV.
+
+### Simplificacions conegudes
+
+- Per calcular l'objectiu FIRE s'assumeix que les retirades tributen com els ETFs (o com les accions, si els estalvis hi van). És una estimació prudent: les retirades del Compte d'Inversió no tributen.
+- Els interessos de l'efectiu es tracten com a plusvàlua amb CGT, no amb DIRT anual.
+- No es modelen l'impost sobre la renda dels dividends, l'USC ni el PRSI més enllà del tipus efectiu de les pensions.
 
 ---
 
-## 📁 Arquitectura del Projecte
+## 📁 Estructura
 
 ```
-CalculadoraFire/
-├── app.py                      # Orquestrador principal Streamlit
-├── requirements.txt            # Dependències (streamlit, plotly, pandas)
-├── .streamlit/
-│   └── config.toml             # Tema fosc personalitzat
-├── config/
-│   ├── defaults.py             # Valors inicials i constants
-│   └── translations.py         # Diccionari i18n Català / Anglès
-├── models/
-│   ├── types.py                # Dataclasses de tipus de dades
-│   └── __init__.py
+├── app.py                  # Orquestrador Streamlit
+├── requirements.txt        # Versions provades
+├── .streamlit/config.toml  # Tema clar
+├── config/                 # Valors per defecte i textos
+├── models/types.py         # Dataclasses
 ├── engine/
-│   ├── fire_simulation.py      # Motor de simulació pur Python
-│   ├── tax_calculators.py      # Motor de càlcul fiscal CAT/IE/AD
-│   └── __init__.py
-└── ui/
-    ├── header.py               # Capçalera i estils CSS
-    ├── metric_cards.py         # Targetes de mètriques clau
-    ├── inputs.py               # Inputs bidireccionals i actius
-    ├── swr_control.py          # Selector SWR i presets
-    ├── country_tax.py          # Selector fiscal per territori
-    ├── macro_scenario.py       # Escenaris macroeconòmics
-    ├── fire_chart.py           # Gràfic interactiu Plotly
-    ├── tax_breakdown.py        # Desglossament de despesa i impostos
-    ├── country_comparison.py   # Comparativa dels 3 països
-    ├── yearly_table.py         # Taula any a any i descàrrega CSV
-    └── __init__.py
+│   ├── fire_simulation.py  # Simulació any a any
+│   └── tax_calculators.py  # Càlcul fiscal per retirada
+├── ui/                     # Components de la interfície (ui/keys.py: claus de widgets i reset)
+└── utils/serialization.py  # Enllaç per compartir i import/export JSON
 ```

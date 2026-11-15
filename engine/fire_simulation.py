@@ -1,24 +1,90 @@
 """
 Motor de simulació per a la independència financera (FIRE) a Irlanda.
-Model de múltiples pilars: Cartera Pont (Budget 2027 / ETFs) + Pensió Privada (PRSA) + MyFutureFund (Auto-enrolment).
+Model de múltiples pilars: Cartera Pont (Compte d'Inversió / ETFs / altres) + Pensió Privada (PRSA) + MyFutureFund.
+
+Cartera líquida ("bridge"), tres pots amb la seva pròpia fiscalitat:
+- Compte d'Inversió (Budget 2027): obre l'1 de juliol de 2027, aportacions limitades a 12.000 €/any.
+  Taxa anual sobre el saldo que supera el llindar (50.000 €); les retirades no tributen.
+- ETFs / fons UCITS (categoria index_funds): Exit Tax sobre la plusvàlua en retirar i, opcionalment,
+  Deemed Disposal durant l'acumulació.
+- Altres (accions, efectiu, immobles): CGT sobre la plusvàlua en retirar, amb l'exempció anual.
+
+El règim seleccionat (`ireland_asset_type`) decideix on van els estalvis mensuals nous:
+- budget_2027_account   -> al Compte d'Inversió fins al límit anual; l'excés va a ETFs.
+- etf_exit_tax          -> a ETFs.
+- individual_shares_cgt -> a accions individuals (pot "altres").
+
+Els impostos de l'acumulació es resten de la cartera. En jubilació, cada any es retira el brut necessari
+perquè, després d'impostos (i de pagar la taxa del compte), quedi exactament l'ingrés net objectiu.
+El rendiment de cada pot és la mitjana ponderada del rendiment esperat dels seus actius, desplaçada
+per l'escenari macro (rendiment nominal de l'escenari - 7% base).
 """
 from __future__ import annotations
 
-import copy
+from dataclasses import replace
 from datetime import datetime
-from typing import Optional
 
 from models.types import (
     FireCalculationResult,
     FireInputs,
+    PortfolioAsset,
     TaxSettings,
     YearProjection,
 )
-from engine.tax_calculators import (
-    calculate_catalonia_wealth_tax,
-    calculate_gross_needed_for_net_income,
-    compute_annual_tax_for_withdrawal,
-)
+from engine.tax_calculators import compute_annual_tax_for_withdrawal
+
+BASE_NOMINAL_RETURN = 7.0  # % de referència dels escenaris macro
+PENSION_CATEGORIES = ("private_pension", "my_future_fund")
+ACCOUNT_OPEN_YEAR = 2027  # el Compte d'Inversió obre l'1 de juliol de 2027
+ACCOUNT_ANNUAL_CAP = 12_000.0  # aportació màxima anual
+
+
+def account_contribution_cap(calendar_year: int) -> float:
+    """Aportació màxima al Compte d'Inversió en un any natural (mig any el 2027)."""
+    if calendar_year < ACCOUNT_OPEN_YEAR:
+        return 0.0
+    if calendar_year == ACCOUNT_OPEN_YEAR:
+        return ACCOUNT_ANNUAL_CAP / 2.0
+    return ACCOUNT_ANNUAL_CAP
+
+
+def _amount(a: PortfolioAsset) -> float:
+    return max(0.0, float(a.current_amount or 0.0))
+
+
+def _weighted_return(assets: list[PortfolioAsset], shift: float) -> float:
+    """Rendiment anual (decimal) ponderat per import, més el desplaçament de l'escenari."""
+    total = sum(_amount(a) for a in assets)
+    if total <= 0:
+        return BASE_NOMINAL_RETURN / 100.0 + shift
+    weighted = sum(_amount(a) * float(a.expected_return_annual or 0.0) for a in assets)
+    return weighted / total / 100.0 + shift
+
+
+def _basis(assets: list[PortfolioAsset]) -> float:
+    """Cost d'adquisició (mai superior al valor de mercat de cada actiu)."""
+    return sum(min(max(0.0, float(a.cost_basis or 0.0)), _amount(a)) for a in assets)
+
+
+def _gross_for_net(net_wanted: float, pot: float, basis: float, ts: TaxSettings, lang: str) -> tuple[float, float]:
+    """Brut a vendre d'un pot perquè, després d'impostos, quedi `net_wanted`. Retorna (brut, impost)."""
+    if net_wanted <= 0 or pot <= 0:
+        return 0.0, 0.0
+    gain_ratio = max(0.0, 1.0 - basis / pot)
+
+    def tax_of(gross: float) -> float:
+        return compute_annual_tax_for_withdrawal(gross, ts, pot, lang, gain_ratio=gain_ratio).total_tax
+
+    if pot - tax_of(pot) <= net_wanted:
+        return pot, tax_of(pot)
+    lo, hi = net_wanted, pot
+    for _ in range(50):
+        mid = (lo + hi) / 2.0
+        if mid - tax_of(mid) < net_wanted:
+            lo = mid
+        else:
+            hi = mid
+    return hi, tax_of(hi)
 
 
 def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult:
@@ -29,199 +95,155 @@ def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult
     current_age = inputs.current_age
     target_retirement_age = inputs.target_retirement_age
     life_expectancy = inputs.life_expectancy or 88
-    target_monthly_disposable_income = inputs.target_monthly_disposable_income
     assets = inputs.assets
-    monthly_savings = inputs.monthly_savings
-    annual_savings_increase_rate = inputs.annual_savings_increase_rate
-    safe_withdrawal_rate = inputs.safe_withdrawal_rate
+    savings_growth = 1.0 + (inputs.annual_savings_increase_rate or 0.0) / 100.0
     scenario = inputs.scenario
     tax_settings = inputs.tax_settings
-    pension_settings = inputs.pension_settings
+    ps = inputs.pension_settings
+    swr_decimal = max(0.01, inputs.safe_withdrawal_rate / 100.0)
 
-    # 1. Separar la Cartera Pont (accessible) de les Pensions (bloquejades fins a l'edat d'accés)
-    bridge_assets = [a for a in assets if a.category not in ("private_pension", "my_future_fund")]
-    bridge_capital_initial = sum(float(a.current_amount or 0.0) for a in bridge_assets)
+    # ── Fiscalitat ─────────────────────────────────────────────────────
+    regime = tax_settings.ireland_asset_type
+    reform = tax_settings.tax_reform_change_rate or 0.0
+    threshold = float(getattr(tax_settings, "ireland_investment_account_threshold", 50000.0))
+    account_rate = max(0.0, float(getattr(tax_settings, "ireland_investment_account_rate", 1.0)) / 100.0)
+    exit_rate = max(0.0, (float(getattr(tax_settings, "ireland_exit_tax_rate", 35.0)) + reform) / 100.0)
+    deemed_disposal_on = tax_settings.country == "IE" and bool(tax_settings.ireland_simulate_deemed_disposal)
+    dd_rolling = (tax_settings.ireland_deemed_disposal_mode or "staggered_rolling_eighth") == "staggered_rolling_eighth"
 
-    # Distingir els actius en el Nou Compte d'Inversió (Budget 2027) de la resta de la cartera líquida
+    ts_etf = replace(tax_settings, ireland_asset_type="etf_exit_tax")
+    ts_cgt = replace(tax_settings, ireland_asset_type="individual_shares_cgt")
+    # Per dimensionar l'objectiu s'assumeix que les retirades tributen com el pot "de fora" del compte
+    # on van els estalvis (prudent: les retirades del Compte d'Inversió no tributen).
+    ts_plan = ts_cgt if regime == "individual_shares_cgt" else ts_etf
+
+    # ── Pots inicials ──────────────────────────────────────────────────
+    bridge_assets = [a for a in assets if a.category not in PENSION_CATEGORIES]
     b27_assets = [a for a in bridge_assets if a.category == "budget_2027_account"]
-    b27_initial = sum(float(a.current_amount or 0.0) for a in b27_assets)
-    other_bridge_initial = max(0.0, bridge_capital_initial - b27_initial)
+    etf_assets = [a for a in bridge_assets if a.category == "index_funds"]
+    misc_assets = [a for a in bridge_assets if a.category not in ("budget_2027_account", "index_funds")]
 
-    # Obtenir fons de pensions exclusivament de pension_settings si estan activats (o fallback a assets per retrocompatibilitat)
+    b27_pot = sum(_amount(a) for a in b27_assets)
+    etf_pot = sum(_amount(a) for a in etf_assets)
+    misc_pot = sum(_amount(a) for a in misc_assets)
+    etf_basis = _basis(etf_assets)
+    misc_basis = _basis(misc_assets)
+    bridge_capital_initial = b27_pot + etf_pot + misc_pot
+
     asset_p_pension = next((a for a in assets if a.category == "private_pension"), None)
     asset_mff = next((a for a in assets if a.category == "my_future_fund"), None)
 
-    if pension_settings and getattr(pension_settings, "private_pension_enabled", False):
-        private_pension_initial = float(pension_settings.private_pension_balance or 0.0)
+    p_enabled = bool(ps and ps.private_pension_enabled)
+    mff_enabled = bool(ps and ps.my_future_fund_enabled)
+
+    if p_enabled:
+        p_pension_pot = float(ps.private_pension_balance or 0.0)
     elif asset_p_pension:
-        private_pension_initial = float(asset_p_pension.current_amount or 0.0)
+        p_pension_pot = _amount(asset_p_pension)
     else:
-        private_pension_initial = 0.0
+        p_pension_pot = 0.0
 
-    if pension_settings and getattr(pension_settings, "my_future_fund_enabled", False):
-        mff_initial = float(pension_settings.my_future_fund_balance or 0.0)
+    if mff_enabled:
+        mff_pot = float(ps.my_future_fund_balance or 0.0)
     elif asset_mff:
-        mff_initial = float(asset_mff.current_amount or 0.0)
+        mff_pot = _amount(asset_mff)
     else:
-        mff_initial = 0.0
+        mff_pot = 0.0
 
-    current_total_net_worth = bridge_capital_initial + private_pension_initial + mff_initial
-    swr_decimal = max(0.01, safe_withdrawal_rate / 100.0)
+    private_pension_initial = p_pension_pot
+    mff_initial = mff_pot
+    current_total_net_worth = bridge_capital_initial + p_pension_pot + mff_pot
 
-    # Rendibilitats i inflació
-    nominal_rate = scenario.nominal_return / 100.0
+    # ── Rendibilitats i inflació ───────────────────────────────────────
+    scenario_shift = (scenario.nominal_return - BASE_NOMINAL_RETURN) / 100.0
+    b27_return = _weighted_return(b27_assets, scenario_shift)
+    etf_return = _weighted_return(etf_assets, scenario_shift)
+    misc_return = _weighted_return(misc_assets, scenario_shift)
     inflation_rate = scenario.inflation_rate / 100.0
 
-    p_pension_return = (
-        pension_settings.private_pension_expected_return / 100.0
-        if pension_settings
-        else nominal_rate
-    )
-    mff_return = (
-        pension_settings.my_future_fund_expected_return / 100.0
-        if pension_settings
-        else nominal_rate
+    p_pension_return = ps.private_pension_expected_return / 100.0 if ps else scenario.nominal_return / 100.0
+    mff_return = ps.my_future_fund_expected_return / 100.0 if ps else scenario.nominal_return / 100.0
+
+    p_pension_access_age = int(ps.private_pension_access_age) if p_enabled else 50
+    mff_access_age = int(getattr(ps, "my_future_fund_access_age", 66)) if ps else 66
+    state_pension_enabled = bool(getattr(ps, "state_pension_enabled", True)) if ps else False
+    state_pension_monthly = float(getattr(ps, "state_pension_monthly_amount", 1340.0)) if ps else 1340.0
+    state_pension_access_age = int(getattr(ps, "state_pension_access_age", 66)) if ps else 66
+    pension_tax_rate = max(0.0, min(0.99, float(getattr(ps, "pension_income_tax_rate", 20.0)) / 100.0)) if ps else 0.0
+
+    annual_bridge_contrib = inputs.monthly_savings * 12.0
+    annual_p_contrib = ps.private_pension_monthly_contribution * 12.0 if p_enabled else 0.0
+    annual_mff_contrib = (
+        (
+            ps.my_future_fund_employee_monthly
+            + ps.my_future_fund_employer_match_monthly
+            + ps.my_future_fund_state_topup_monthly
+        )
+        * 12.0
+        if mff_enabled
+        else 0.0
     )
 
-    p_pension_access_age = (
-        int(pension_settings.private_pension_access_age)
-        if (pension_settings and pension_settings.private_pension_enabled)
-        else 50
-    )
-    mff_access_age = int(getattr(pension_settings, "my_future_fund_access_age", 66)) if pension_settings else 66
-    state_pension_enabled = bool(getattr(pension_settings, "state_pension_enabled", True)) if pension_settings else False
-    state_pension_monthly = float(getattr(pension_settings, "state_pension_monthly_amount", 1253.0)) if pension_settings else 1253.0
-    state_pension_access_age = int(getattr(pension_settings, "state_pension_access_age", 66)) if pension_settings else 66
-
-    # Variables calculades objectiu
+    # ── Objectiu (en euros d'avui) ─────────────────────────────────────
     target_annual_net_income = 0.0
     gross_withdrawal_needed = 0.0
     fire_number_nominal = 0.0
 
+    def plan_net_for_gross(gross: float) -> float:
+        return compute_annual_tax_for_withdrawal(gross, ts_plan, gross / swr_decimal, lang).net_disposable_income
+
     if mode == "target_spending":
-        target_annual_net_income = target_monthly_disposable_income * 12.0
-        tax_res = calculate_gross_needed_for_net_income(
-            target_annual_net_income, tax_settings, current_total_net_worth, lang
-        )
-        gross_withdrawal_needed = tax_res.gross_withdrawal
+        target_annual_net_income = inputs.target_monthly_disposable_income * 12.0
+        low, high = target_annual_net_income, max(1.0, target_annual_net_income) * 3.0
+        for _ in range(60):
+            mid = (low + high) / 2.0
+            if plan_net_for_gross(mid) < target_annual_net_income:
+                low = mid
+            else:
+                high = mid
+        gross_withdrawal_needed = high
         fire_number_nominal = gross_withdrawal_needed / swr_decimal
-    else:
-        simulated_capital = current_total_net_worth
-        years_to_sim_target = max(0, target_retirement_age - current_age)
-        current_annual_savings = monthly_savings * 12.0
-        p_annual_savings = (
-            pension_settings.private_pension_monthly_contribution * 12.0
-            if (pension_settings and pension_settings.private_pension_enabled)
-            else 0.0
-        )
-        mff_annual_savings = (
-            (
-                pension_settings.my_future_fund_employee_monthly
-                + pension_settings.my_future_fund_employer_match_monthly
-                + pension_settings.my_future_fund_state_topup_monthly
-            )
-            * 12.0
-            if (pension_settings and pension_settings.my_future_fund_enabled)
-            else 0.0
-        )
-        total_annual_inflow = current_annual_savings + p_annual_savings + mff_annual_savings
 
-        for _ in range(years_to_sim_target):
-            simulated_capital = simulated_capital * (1.0 + nominal_rate) + total_annual_inflow
-            total_annual_inflow *= 1.0 + (annual_savings_increase_rate or 0.0) / 100.0
-
-        fire_number_nominal = simulated_capital
-        gross_withdrawal_needed = fire_number_nominal * swr_decimal
-        tax_res = compute_annual_tax_for_withdrawal(
-            gross_withdrawal_needed, tax_settings, fire_number_nominal, lang
-        )
-        target_annual_net_income = tax_res.net_disposable_income
-
-    is_already_fire = current_total_net_worth >= fire_number_nominal and fire_number_nominal > 0
-
-    # 2. Simulació Any a Any fins a l'esperança de vida
+    # ── Simulació any a any fins a l'esperança de vida ─────────────────
     projections: list[YearProjection] = []
-    b27_pot = b27_initial
-    other_bridge_pot = other_bridge_initial
-    bridge_pot = b27_pot + other_bridge_pot
-    p_pension_pot = private_pension_initial
-    mff_pot = mff_initial
-
-    annual_bridge_contrib = monthly_savings * 12.0
-    annual_p_contrib = (
-        pension_settings.private_pension_monthly_contribution * 12.0
-        if (pension_settings and pension_settings.private_pension_enabled)
-        else 0.0
-    )
-    annual_mff_contrib = (
-        (
-            pension_settings.my_future_fund_employee_monthly
-            + pension_settings.my_future_fund_employer_match_monthly
-            + pension_settings.my_future_fund_state_topup_monthly
-        )
-        * 12.0
-        if (pension_settings and pension_settings.my_future_fund_enabled)
-        else 0.0
-    )
-
     total_years = max(1, life_expectancy - current_age)
     fire_achieved_year_index = -1
-    retirement_age_actual = target_retirement_age
-    deemed_disposal_basis = other_bridge_initial
-
-    # Determinar any FIRE si estem en mode target_spending
-    if mode == "target_spending" and not is_already_fire:
-        test_bridge = bridge_capital_initial
-        test_p = private_pension_initial
-        test_mff = mff_initial
-        test_c_bridge = annual_bridge_contrib
-        test_c_p = annual_p_contrib
-        test_c_mff = annual_mff_contrib
-
-        for y in range(70):
-            inflation_adjustment = (1.0 + inflation_rate) ** y
-            inflated_fire_number = fire_number_nominal * inflation_adjustment
-            total_test = test_bridge + test_p + test_mff
-
-            if total_test >= inflated_fire_number:
-                fire_achieved_year_index = y
-                break
-
-            test_bridge = test_bridge * (1.0 + nominal_rate) + test_c_bridge
-            test_p = test_p * (1.0 + p_pension_return) + test_c_p
-            test_mff = test_mff * (1.0 + mff_return) + test_c_mff
-
-            test_c_bridge *= 1.0 + (annual_savings_increase_rate or 0.0) / 100.0
-            test_c_p *= 1.0 + (annual_savings_increase_rate or 0.0) / 100.0
-            test_c_mff *= 1.0 + (annual_savings_increase_rate or 0.0) / 100.0
-    elif is_already_fire:
-        fire_achieved_year_index = 0
-    else:
-        fire_achieved_year_index = max(0, target_retirement_age - current_age)
-
-    if fire_achieved_year_index != -1:
-        retirement_age_actual = current_age + fire_achieved_year_index
+    is_retired = False
 
     portfolio_survival_years = 0
     portfolio_exhausted = False
+    has_income_shortfall = False
     total_tax_free_lump_sum_cum = 0.0
-
     p_pension_unlocked = False
     mff_unlocked = False
+    bridge_at_fire = bridge_capital_initial
+    pension_at_fire = p_pension_pot + mff_pot
+    portfolio_at_fire = current_total_net_worth
+    first_year_breakdown: dict[str, float] | None = None
 
     for i in range(total_years + 1):
         age = current_age + i
         calendar_year = current_year + i
-        is_retired = (
-            (i >= fire_achieved_year_index and fire_achieved_year_index != -1)
-            if mode == "target_spending"
-            else (age >= target_retirement_age)
-        )
-
         inflation_factor = (1.0 + inflation_rate) ** i
-        start_of_period_portfolio = max(0.0, b27_pot + other_bridge_pot + p_pension_pot + mff_pot)
+        start_of_period_portfolio = max(0.0, b27_pot + etf_pot + misc_pot + p_pension_pot + mff_pot)
 
-        active_tax_settings: TaxSettings = copy.copy(tax_settings)
+        # ¿Comença la jubilació aquest any? Es decideix amb la cartera real projectada (impostos inclosos).
+        if not is_retired:
+            if mode == "target_spending":
+                retire_now = fire_number_nominal > 0 and start_of_period_portfolio >= fire_number_nominal * inflation_factor
+            else:
+                retire_now = age >= target_retirement_age
+                if retire_now:
+                    # El FIRE number és el que realment hi haurà a la cartera, expressat en euros d'avui
+                    fire_number_nominal = start_of_period_portfolio / inflation_factor
+                    gross_withdrawal_needed = fire_number_nominal * swr_decimal
+                    target_annual_net_income = plan_net_for_gross(gross_withdrawal_needed)
+            if retire_now:
+                is_retired = True
+                fire_achieved_year_index = i
+                bridge_at_fire = b27_pot + etf_pot + misc_pot
+                pension_at_fire = p_pension_pot + mff_pot
+                portfolio_at_fire = start_of_period_portfolio
 
         contribution_this_year = 0.0
         gross_withdrawal_this_year = 0.0
@@ -229,95 +251,70 @@ def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult
         tax_paid_this_year = 0.0
         net_disposable_this_year = 0.0
         deemed_disposal_tax_paid = 0.0
-        ireland_account_tax_paid = 0.0
+        account_charge_paid = 0.0
         lump_sum_this_year = 0.0
-        current_return_rate = nominal_rate
+        notes = ""
 
-        # Sequence of returns stress test
-        if (
-            is_retired
-            and scenario.stress_drop_first_years
-            and i - fire_achieved_year_index < 2
-            and i >= fire_achieved_year_index
-        ):
-            current_return_rate = -abs(scenario.stress_drop_first_years) / 100.0
-
-        notes: str = ""
+        r_b27, r_etf, r_misc = b27_return, etf_return, misc_return
+        # Sequence of returns stress test: caiguda els dos primers anys de jubilació
+        if is_retired and scenario.stress_drop_first_years and i - fire_achieved_year_index < 2:
+            r_b27 = r_etf = r_misc = -abs(scenario.stress_drop_first_years) / 100.0
 
         if not is_retired:
-            # Fase d'acumulació
-            contrib_bridge = annual_bridge_contrib
-            contrib_p = annual_p_contrib
-            contrib_mff = annual_mff_contrib
+            # ── Fase d'acumulació ──────────────────────────────────────
+            contribution_this_year = annual_bridge_contrib + annual_p_contrib + annual_mff_contrib
 
-            contribution_this_year = contrib_bridge + contrib_p + contrib_mff
+            b27_pot *= 1.0 + r_b27
+            etf_pot *= 1.0 + r_etf
+            misc_pot *= 1.0 + r_misc
 
-            annual_bridge_contrib *= 1.0 + (annual_savings_increase_rate or 0.0) / 100.0
-            annual_p_contrib *= 1.0 + (annual_savings_increase_rate or 0.0) / 100.0
-            annual_mff_contrib *= 1.0 + (annual_savings_increase_rate or 0.0) / 100.0
+            # Destí dels estalvis nous segons el règim seleccionat
+            if regime == "budget_2027_account":
+                to_account = min(annual_bridge_contrib, account_contribution_cap(calendar_year))
+                b27_pot += to_account
+                etf_pot += annual_bridge_contrib - to_account
+                etf_basis += annual_bridge_contrib - to_account
+            elif regime == "individual_shares_cgt":
+                misc_pot += annual_bridge_contrib
+                misc_basis += annual_bridge_contrib
+            else:
+                etf_pot += annual_bridge_contrib
+                etf_basis += annual_bridge_contrib
 
-            # 1. Rendiment sobre el Nou Compte d'Inversió (Budget 2027)
-            if b27_pot > 0:
-                b27_pot *= 1.0 + current_return_rate
-                # Regla Pressupost 2027: 0% fins a 50.000 €, 1% sobre l'excés
-                if i > 0:
-                    threshold = getattr(active_tax_settings, "ireland_investment_account_threshold", 50000.0)
-                    account_rate = max(
-                        0.0,
-                        (getattr(active_tax_settings, "ireland_investment_account_rate", 1.0)
-                         + (active_tax_settings.tax_reform_change_rate or 0.0)) / 100.0,
-                    )
-                    taxable_above = max(0.0, b27_pot - threshold)
-                    if taxable_above > 0:
-                        ireland_account_tax_paid = taxable_above * account_rate
-                        b27_pot = max(0.0, b27_pot - ireland_account_tax_paid)
-                        tax_paid_this_year += ireland_account_tax_paid
+            if i > 0:
+                account_charge_paid = max(0.0, b27_pot - threshold) * account_rate
+                b27_pot -= account_charge_paid
 
-            # 2. Rendiment sobre la resta de la cartera líquida (ETFs / Accions)
-            other_bridge_pot = other_bridge_pot * (1.0 + current_return_rate) + contrib_bridge
-
-            # Irlanda Deemed Disposal sobre ETFs de la cartera líquida fora del compte 2027
-            if (
-                active_tax_settings.country == "IE"
-                and active_tax_settings.ireland_simulate_deemed_disposal
-                and other_bridge_pot > 0
-                and i > 0
-            ):
-                is_rolling = (
-                    active_tax_settings.ireland_deemed_disposal_mode or "staggered_rolling_eighth"
-                ) == "staggered_rolling_eighth"
-                should_apply = True if is_rolling else (i % 8 == 0)
-                if should_apply:
-                    unrealized_gains = max(0.0, other_bridge_pot - deemed_disposal_basis)
+                if deemed_disposal_on and etf_pot > 0 and (dd_rolling or i % 8 == 0):
+                    unrealized_gains = max(0.0, etf_pot - etf_basis)
                     if unrealized_gains > 0:
-                        exit_rate = max(0.0, 0.35 + (active_tax_settings.tax_reform_change_rate or 0.0) / 100.0)
-                        maturing_gain = unrealized_gains / 8.0 if is_rolling else unrealized_gains
-                        deemed_disposal_tax_paid = maturing_gain * exit_rate
-                        other_bridge_pot = max(0.0, other_bridge_pot - deemed_disposal_tax_paid)
-                        if is_rolling:
-                            deemed_disposal_basis += maturing_gain
-                        else:
-                            deemed_disposal_basis = other_bridge_pot
-                        tax_paid_this_year += deemed_disposal_tax_paid
+                        taxed_gain = unrealized_gains / 8.0 if dd_rolling else unrealized_gains
+                        deemed_disposal_tax_paid = taxed_gain * exit_rate
+                        etf_pot = max(0.0, etf_pot - deemed_disposal_tax_paid)
+                        # La plusvàlua ja gravada passa a formar part del cost d'adquisició
+                        etf_basis = min(etf_pot, etf_basis + taxed_gain)
 
-            bridge_pot = b27_pot + other_bridge_pot
+                tax_paid_this_year = account_charge_paid + deemed_disposal_tax_paid
 
-            # Les PENSIONS creixen 100% LLIURES D'IMPOSTOS (exempció total irlandesa)
-            if p_pension_pot > 0 or contrib_p > 0:
-                p_pension_pot = p_pension_pot * (1.0 + p_pension_return) + contrib_p
-            if mff_pot > 0 or contrib_mff > 0:
-                mff_pot = mff_pot * (1.0 + mff_return) + contrib_mff
+            # Les pensions creixen lliures d'impostos
+            if p_pension_pot > 0 or annual_p_contrib > 0:
+                p_pension_pot = p_pension_pot * (1.0 + p_pension_return) + annual_p_contrib
+            if mff_pot > 0 or annual_mff_contrib > 0:
+                mff_pot = mff_pot * (1.0 + mff_return) + annual_mff_contrib
+
+            annual_bridge_contrib *= savings_growth
+            annual_p_contrib *= savings_growth
+            annual_mff_contrib *= savings_growth
 
         else:
-            # Fase de jubilació (Decumulació)
-            # 1. Comprovar esdeveniments de rescat de pensions
-            # A) Pensió Privada (edat d'accés: p.ex. 50 anys per empresa / 60 PRSA)
+            # ── Fase de jubilació (decumulació) ────────────────────────
+            # 1. Rescat de pensions: el 25% exempt passa a la cartera líquida (pot "altres") com a capital
             if age >= p_pension_access_age and not p_pension_unlocked and p_pension_pot > 0:
                 p_pension_unlocked = True
-                # 25% lump sum exempt d'impostos fins a un màxim legal de 200.000 € a Irlanda
-                lump_sum_p = min(200_000.0, p_pension_pot * 0.25)
+                lump_sum_p = min(200_000.0, p_pension_pot * 0.25)  # màxim legal exempt
                 p_pension_pot -= lump_sum_p
-                bridge_pot += lump_sum_p
+                misc_pot += lump_sum_p
+                misc_basis += lump_sum_p
                 lump_sum_this_year += lump_sum_p
                 total_tax_free_lump_sum_cum += lump_sum_p
                 notes = (
@@ -326,109 +323,125 @@ def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult
                     else f"🛡️ Rescat Pensió Privada als {age} anys! {round(lump_sum_p):,} € Capital Exempt (25%)"
                 )
 
-            # B) MyFutureFund & Pensió Estatal (als 66 anys)
             if age >= mff_access_age and not mff_unlocked and mff_pot > 0:
                 mff_unlocked = True
-                # 25% lump sum exempt d'impostos
                 lump_sum_mff = mff_pot * 0.25
                 mff_pot -= lump_sum_mff
-                bridge_pot += lump_sum_mff
+                misc_pot += lump_sum_mff
+                misc_basis += lump_sum_mff
                 lump_sum_this_year += lump_sum_mff
                 total_tax_free_lump_sum_cum += lump_sum_mff
-                notes = (
-                    f"🏛️ MyFutureFund & State Pension Unlocked at age 66! €{round(lump_sum_mff):,} Tax-Free Lump Sum (25%)"
+                mff_note = (
+                    f"🏛️ MyFutureFund Unlocked at age {age}! €{round(lump_sum_mff):,} Tax-Free Lump Sum (25%)"
                     if is_en
-                    else f"🏛️ MyFutureFund & Pensió d'Estat als 66 anys! {round(lump_sum_mff):,} € Capital Exempt (25%)"
+                    else f"🏛️ MyFutureFund als {age} anys! {round(lump_sum_mff):,} € Capital Exempt (25%)"
                 )
+                notes = f"{notes} | {mff_note}" if notes else mff_note
 
-            # Despesa total requerida ajustada per inflació
-            inflated_gross_withdrawal = gross_withdrawal_needed * inflation_factor
+            # 2. Ingrés net objectiu d'aquest any (ajustat per inflació)
+            net_needed = target_annual_net_income * inflation_factor
 
-            # Ingressos de la Pensió Pública d'Estat (Pilar 1)
             if state_pension_enabled and age >= state_pension_access_age:
                 state_pension_this_year = (state_pension_monthly * 12.0) * inflation_factor
                 if age == state_pension_access_age:
                     pension_note = (
-                        f"🏛️ State Pension active! +€{round(state_pension_this_year):,} /yr (€{round(state_pension_monthly):,}/mo)"
+                        f"🏛️ State Pension active! +€{round(state_pension_this_year):,} /yr"
                         if is_en
-                        else f"🏛️ Pensió d'Estat activa! +{round(state_pension_this_year):,} €/any ({round(state_pension_monthly):,} €/mes)"
+                        else f"🏛️ Pensió d'Estat activa! +{round(state_pension_this_year):,} €/any"
                     )
                     notes = f"{notes} | {pension_note}" if notes else pension_note
+            # La pensió d'Estat no tributa en aquest model
+            net_needed = max(0.0, net_needed - state_pension_this_year)
 
-            # Quantitat necessària a cobrir des de carteres d'inversió (després de la pensió pública)
-            needed_from_portfolios = max(0.0, inflated_gross_withdrawal - state_pension_this_year)
+            # 3. ARF / MyFutureFund (si ja estan desbloquejats), fins a la SWR del pot
+            pension_gross = 0.0
 
-            # Ingressos de pensions privades/ARF per cobrir la despesa restant
-            pension_drawdown_this_year = 0.0
+            def draw_pensions(net_wanted: float, capped: bool) -> float:
+                """Retira de les pensions desbloquejades; retorna el net obtingut."""
+                nonlocal p_pension_pot, mff_pot, pension_gross
+                got = 0.0
+                for which in ("p", "mff"):
+                    unlocked = p_pension_unlocked if which == "p" else mff_unlocked
+                    pot = p_pension_pot if which == "p" else mff_pot
+                    if not unlocked or pot <= 0 or net_wanted - got <= 0:
+                        continue
+                    gross_wanted = (net_wanted - got) / (1.0 - pension_tax_rate)
+                    limit = pot * swr_decimal if capped else pot
+                    gross = min(pot, limit, gross_wanted)
+                    if which == "p":
+                        p_pension_pot -= gross
+                    else:
+                        mff_pot -= gross
+                    pension_gross += gross
+                    got += gross * (1.0 - pension_tax_rate)
+                return got
 
-            # Retirada de l'ARF de la Pensió Privada (si ja està desbloquejada)
-            if p_pension_unlocked and p_pension_pot > 0 and needed_from_portfolios > 0:
-                p_drawdown = min(p_pension_pot, min(p_pension_pot * swr_decimal, needed_from_portfolios))
-                p_pension_pot -= p_drawdown
-                pension_drawdown_this_year += p_drawdown
-                needed_from_portfolios = max(0.0, needed_from_portfolios - p_drawdown)
+            net_needed -= draw_pensions(net_needed, capped=True)
 
-            # Retirada de MyFutureFund (a partir dels 66 anys)
-            if mff_unlocked and mff_pot > 0 and needed_from_portfolios > 0:
-                mff_drawdown = min(mff_pot, min(mff_pot * swr_decimal, needed_from_portfolios))
-                mff_pot -= mff_drawdown
-                pension_drawdown_this_year += mff_drawdown
-                needed_from_portfolios = max(0.0, needed_from_portfolios - mff_drawdown)
+            # 4. Cartera líquida: la taxa anual del compte es paga amb una retirada extra del mateix compte
+            if i > 0:
+                account_charge_paid = max(0.0, b27_pot - threshold) * account_rate
+            cash_needed = net_needed + account_charge_paid
 
-            # El romanent es retira de la Cartera Pont (Bridge)
-            withdrawal_from_bridge = needed_from_portfolios
+            draw_b27 = min(b27_pot, cash_needed)
+            b27_pot -= draw_b27
+            cash_needed -= draw_b27
 
-            # Es retira primer del Compte d'Inversió 2027 (0% Exit Tax i 0% CGT)
-            draw_b27 = min(b27_pot, withdrawal_from_bridge)
-            b27_pot = max(0.0, b27_pot - draw_b27)
-            rem_bridge_withdrawal = max(0.0, withdrawal_from_bridge - draw_b27)
+            # Primer les accions/altres (CGT 31% amb exempció), després els ETFs (Exit Tax 35%)
+            draw_misc, tax_misc = _gross_for_net(cash_needed, misc_pot, misc_basis, ts_cgt, lang)
+            if misc_pot > 0:
+                misc_basis *= 1.0 - draw_misc / misc_pot
+            misc_pot -= draw_misc
+            cash_needed -= draw_misc - tax_misc
 
-            # La resta es retira dels altres actius bridge (ETFs / Accions)
-            draw_other = min(other_bridge_pot, rem_bridge_withdrawal)
-            other_bridge_pot = max(0.0, other_bridge_pot - draw_other)
+            draw_etf, tax_etf = _gross_for_net(cash_needed, etf_pot, etf_basis, ts_etf, lang)
+            if etf_pot > 0:
+                etf_basis *= 1.0 - draw_etf / etf_pot
+            etf_pot -= draw_etf
+            cash_needed -= draw_etf - tax_etf
 
-            actual_bridge_withdrawal = draw_b27 + draw_other
-            bridge_pot = b27_pot + other_bridge_pot
-            gross_withdrawal_this_year = actual_bridge_withdrawal + pension_drawdown_this_year + state_pension_this_year
+            # Si la cartera líquida no arriba, es retira més de les pensions ja desbloquejades
+            if cash_needed > 1.0:
+                cash_needed -= draw_pensions(cash_needed, capped=False)
 
-            # Càlcul d'impostos
-            # 1. Compte 2027: 0% en retirada; taxa de l'1% només sobre el saldo restant que superi el threshold
-            tax_b27 = 0.0
-            threshold = getattr(active_tax_settings, "ireland_investment_account_threshold", 50000.0)
-            account_rate = max(
-                0.0,
-                (getattr(active_tax_settings, "ireland_investment_account_rate", 1.0)
-                 + (active_tax_settings.tax_reform_change_rate or 0.0)) / 100.0,
+            pension_income_tax = pension_gross * pension_tax_rate
+            gross_withdrawal_this_year = (
+                draw_b27 + draw_misc + draw_etf + pension_gross + state_pension_this_year
             )
-            if b27_pot > threshold:
-                annual_charge = (b27_pot - threshold) * account_rate
-                tax_b27 += annual_charge
-                b27_pot = max(0.0, b27_pot - annual_charge)
-
-            # 2. Resta de la cartera bridge subjecta a impostos ordinaris (Exit Tax 35% / CGT 31%)
-            tax_other = 0.0
-            if draw_other > 0:
-                tax_res_other = compute_annual_tax_for_withdrawal(
-                    draw_other, active_tax_settings, other_bridge_pot, lang
-                )
-                tax_other = tax_res_other.total_tax
-
-            tax_paid_this_year = tax_b27 + tax_other
+            tax_paid_this_year = account_charge_paid + tax_misc + tax_etf + pension_income_tax
             net_disposable_this_year = max(0.0, gross_withdrawal_this_year - tax_paid_this_year)
 
-            # Rendiment sobre els capitals restants
-            if b27_pot > 0:
-                b27_pot *= 1.0 + current_return_rate
-            if other_bridge_pot > 0:
-                other_bridge_pot *= 1.0 + current_return_rate
-            bridge_pot = b27_pot + other_bridge_pot
-            if p_pension_pot > 0:
-                p_pension_pot *= 1.0 + p_pension_return
-            if mff_pot > 0:
-                mff_pot *= 1.0 + mff_return
+            if first_year_breakdown is None:
+                first_year_breakdown = {
+                    "gross": gross_withdrawal_this_year / inflation_factor,
+                    "tax": tax_paid_this_year / inflation_factor,
+                    "account_charge": account_charge_paid / inflation_factor,
+                    "exit_tax": tax_etf / inflation_factor,
+                    "cgt": tax_misc / inflation_factor,
+                    "pension_tax": pension_income_tax / inflation_factor,
+                    "state_pension": state_pension_this_year / inflation_factor,
+                }
 
+            # ¿S'ha pogut cobrir la despesa?
+            if cash_needed > 1.0:
+                has_income_shortfall = True
+                if p_pension_pot + mff_pot > 0 and not notes:
+                    notes = (
+                        "⚠️ Income gap: liquid portfolio is empty and pensions are still locked"
+                        if is_en
+                        else "⚠️ Dèficit d'ingressos: cartera líquida esgotada i pensions encara bloquejades"
+                    )
+
+            # 5. Rendiment sobre els capitals restants
+            b27_pot *= 1.0 + r_b27
+            etf_pot *= 1.0 + r_etf
+            misc_pot *= 1.0 + r_misc
+            p_pension_pot *= 1.0 + p_pension_return
+            mff_pot *= 1.0 + mff_return
+
+        bridge_pot = b27_pot + etf_pot + misc_pot
         total_portfolio_year = bridge_pot + p_pension_pot + mff_pot
-        if total_portfolio_year > 0:
+        if total_portfolio_year > 0.5:
             portfolio_survival_years += 1
         elif start_of_period_portfolio > 0:
             portfolio_exhausted = True
@@ -436,19 +449,24 @@ def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult
                 notes = "❌ Portfolio Depletion" if is_en else "❌ Esgotament del capital"
 
         ending_portfolio = max(0.0, total_portfolio_year)
-        ending_portfolio_real = ending_portfolio / inflation_factor
 
-        if not notes and i == fire_achieved_year_index and is_retired:
+        if not notes and i == fire_achieved_year_index:
             notes = (
                 "🎉 Financial Independence Achieved!"
                 if is_en
                 else "🎉 Assoliment de la Independència Financera!"
             )
-        elif not notes and ireland_account_tax_paid > 0:
+        elif not notes and calendar_year == ACCOUNT_OPEN_YEAR and regime == "budget_2027_account" and not is_retired:
             notes = (
-                f"🇮🇪 Irish Investment Account (1% >€50k): €{round(ireland_account_tax_paid):,}"
+                "🌟 Investment Account opens (1 July): savings go in up to €12,000/yr"
                 if is_en
-                else f"🇮🇪 Compte Inversió Irlanda (1% >50k €): {round(ireland_account_tax_paid):,} €"
+                else "🌟 Obre el Compte d'Inversió (1 de juliol): estalvis fins a 12.000 €/any"
+            )
+        elif not notes and account_charge_paid > 0:
+            notes = (
+                f"🇮🇪 Investment Account charge ({account_rate * 100:g}% above €{round(threshold):,}): €{round(account_charge_paid):,}"
+                if is_en
+                else f"🇮🇪 Taxa Compte Inversió ({account_rate * 100:g}% sobre {round(threshold):,} €): {round(account_charge_paid):,} €"
             )
 
         projections.append(
@@ -458,14 +476,14 @@ def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult
                 age=age,
                 is_retired=is_retired,
                 starting_portfolio=start_of_period_portfolio,
-                gross_return=current_return_rate,
+                gross_return=r_etf,
                 inflation_factor=inflation_factor,
                 contribution=contribution_this_year,
                 gross_withdrawal=gross_withdrawal_this_year,
                 tax_paid=tax_paid_this_year,
                 net_disposable_income=net_disposable_this_year,
                 ending_portfolio=ending_portfolio,
-                ending_portfolio_real=ending_portfolio_real,
+                ending_portfolio_real=ending_portfolio / inflation_factor,
                 bridge_portfolio=bridge_pot,
                 pension_portfolio=p_pension_pot + mff_pot,
                 private_pension_value=p_pension_pot,
@@ -477,36 +495,53 @@ def simulate_fire(inputs: FireInputs, lang: str = "ca") -> FireCalculationResult
             )
         )
 
-    # Resum fiscal en l'any de jubilació
-    sample_tax = compute_annual_tax_for_withdrawal(
-        gross_withdrawal_needed, tax_settings, fire_number_nominal, lang
-    )
-    years_to_fire = 0 if is_already_fire else max(0, retirement_age_actual - current_age)
-    age_at_fire = current_age if is_already_fire else retirement_age_actual
-    calendar_year_at_fire = current_year + years_to_fire
+    # ── Resum ──────────────────────────────────────────────────────────
+    reached = fire_achieved_year_index != -1
+    years_to_fire = fire_achieved_year_index if reached else 0
+    is_already_fire = reached and fire_achieved_year_index == 0 and mode == "target_spending"
 
-    # Capital en pensions vs bridge en jubilar-se
-    proj_at_fire = projections[min(len(projections) - 1, years_to_fire)] if projections else None
+    if first_year_breakdown is None:
+        # Objectiu no assolit: estimació amb el règim de planificació
+        est = compute_annual_tax_for_withdrawal(gross_withdrawal_needed, ts_plan, fire_number_nominal, lang)
+        first_year_breakdown = {
+            "gross": gross_withdrawal_needed,
+            "tax": est.total_tax,
+            "account_charge": 0.0,
+            "exit_tax": est.total_tax if ts_plan is ts_etf else 0.0,
+            "cgt": est.total_tax if ts_plan is ts_cgt else 0.0,
+            "pension_tax": 0.0,
+            "state_pension": 0.0,
+        }
+    fy = first_year_breakdown
+    fy_gross = fy["gross"]
 
     return FireCalculationResult(
         fire_number_nominal=fire_number_nominal,
         fire_number_real=fire_number_nominal,
         monthly_disposable_target=target_annual_net_income / 12.0,
         annual_gross_withdrawal_needed=gross_withdrawal_needed,
-        annual_tax_at_retirement=sample_tax.total_tax,
-        effective_tax_rate_at_retirement=sample_tax.effective_tax_rate,
+        annual_tax_at_retirement=fy["tax"],
+        effective_tax_rate_at_retirement=fy["tax"] / fy_gross if fy_gross > 0 else 0.0,
+        retirement_year_gross=fy_gross,
+        retirement_year_account_charge=fy["account_charge"],
+        retirement_year_exit_tax=fy["exit_tax"],
+        retirement_year_cgt=fy["cgt"],
+        retirement_year_pension_tax=fy["pension_tax"],
+        retirement_year_state_pension=fy["state_pension"],
         years_to_fire=years_to_fire,
-        age_at_fire=age_at_fire,
-        calendar_year_at_fire=calendar_year_at_fire,
+        age_at_fire=current_age + years_to_fire if reached else 0,
+        calendar_year_at_fire=current_year + years_to_fire if reached else 0,
         is_already_fire=is_already_fire,
+        fire_reachable=reached,
+        has_income_shortfall=has_income_shortfall,
         current_total_net_worth=current_total_net_worth,
-        projected_portfolio_at_fire=current_total_net_worth if is_already_fire else fire_number_nominal,
+        projected_portfolio_at_fire=portfolio_at_fire,
         projections=projections,
         portfolio_survival_years=portfolio_survival_years,
         final_portfolio_value=projections[-1].ending_portfolio if projections else 0.0,
-        is_sustainable=not portfolio_exhausted,
-        bridge_capital_at_fire=proj_at_fire.bridge_portfolio if proj_at_fire else bridge_capital_initial,
-        pension_capital_at_fire=proj_at_fire.pension_portfolio if proj_at_fire else (private_pension_initial + mff_initial),
+        is_sustainable=reached and not portfolio_exhausted and not has_income_shortfall,
+        bridge_capital_at_fire=bridge_at_fire if reached else bridge_capital_initial,
+        pension_capital_at_fire=pension_at_fire if reached else (private_pension_initial + mff_initial),
         private_pension_unlocked_age=p_pension_access_age,
         my_future_fund_unlocked_age=mff_access_age,
         state_pension_unlocked_age=state_pension_access_age,

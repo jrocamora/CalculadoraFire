@@ -7,6 +7,7 @@ from __future__ import annotations
 import io
 import pandas as pd
 import streamlit as st
+from ui.keys import k
 from config.translations import Language, t
 from models.types import YearProjection
 
@@ -53,7 +54,7 @@ def render_yearly_table(
                 "retirement": t("tableFilterRetirement", lang),
             }[x],
             horizontal=True,
-            key="yearly_table_filter",
+            key=k("yearly_table_filter"),
             label_visibility="collapsed",
         )
 
@@ -138,14 +139,14 @@ def render_yearly_table(
             data=csv_buffer.getvalue(),
             file_name=f"fire_projection.csv",
             mime="text/csv",
-            use_container_width=True,
-            key="download_csv_btn",
+            width="stretch",
+            key=k("download_csv_btn"),
         )
 
     # Mostrar la taula paginada / interactiva de Streamlit
     st.dataframe(
         df,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         height=450,
     )

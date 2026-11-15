@@ -29,7 +29,7 @@ def get_initial_pension_settings() -> PensionSettings:
         my_future_fund_access_age=66,
         my_future_fund_tax_free_lump_sum_pct=25.0,
         state_pension_enabled=False,
-        state_pension_monthly_amount=1253.0,
+        state_pension_monthly_amount=1340.0,
         state_pension_access_age=66,
     )
 
@@ -40,17 +40,17 @@ def get_initial_assets() -> list[PortfolioAsset]:
             id="asset-0",
             category="budget_2027_account",
             name="New Investment Account (Budget 2027)",
-            current_amount=50000.0,
+            current_amount=0.0,  # the account only opens on 1 July 2027
             expected_return_annual=7.0,
-            cost_basis=50000.0,
+            cost_basis=0.0,
         ),
         PortfolioAsset(
             id="asset-1",
             category="index_funds",
             name="Global Index Funds / UCITS ETFs",
-            current_amount=25000.0,
+            current_amount=75000.0,
             expected_return_annual=7.0,
-            cost_basis=20000.0,
+            cost_basis=65000.0,
         ),
         PortfolioAsset(
             id="asset-2",

@@ -5,6 +5,7 @@ Port fidel de MacroScenarioSelector.tsx.
 from __future__ import annotations
 
 import streamlit as st
+from ui.keys import k
 from config.translations import Language, t
 from models.types import MacroScenario
 
@@ -84,48 +85,65 @@ def render_macro_scenario_selector(
         },
     ]
 
+    def _apply_preset(p: dict):
+        # Runs before the script reruns: stores the preset and moves both sliders to it.
+        st.session_state.scenario = MacroScenario(
+            id=p["id"],  # type: ignore
+            name=p["name"],
+            description=p["desc"],
+            nominal_return=p["nom"],
+            inflation_rate=p["inf"],
+            stress_drop_first_years=p["stress"],
+        )
+        st.session_state[k("macro_nominal_slider")] = float(p["nom"])
+        st.session_state[k("macro_inflation_slider")] = float(p["inf"])
+
     cols = st.columns(4)
     active_scenario = scenario
 
     for i, p in enumerate(presets):
         with cols[i]:
             is_active = scenario.id == p["id"]
-            if st.button(
+            st.button(
                 f"{'★ ' if is_active else ''}{p['name']}",
-                key=f"macro_preset_{p['id']}",
-                use_container_width=True,
+                key=k(f"macro_preset_{p['id']}"),
+                width="stretch",
                 type="primary" if is_active else "secondary",
-            ):
-                active_scenario = MacroScenario(
-                    id=p["id"],  # type: ignore
-                    name=p["name"],
-                    description=p["desc"],
-                    nominal_return=p["nom"],
-                    inflation_rate=p["inf"],
-                    stress_drop_first_years=p["stress"],
-                )
-            st.caption(f"{p['nom']}% nom. / {p['inf']}% inf.")
+                on_click=_apply_preset,
+                args=(p,),
+            )
+            stress_txt = f" / -{p['stress']:.0f}% crash" if p["stress"] else ""
+            st.caption(f"{p['nom']}% nom. / {p['inf']}% inf.{stress_txt}")
 
     # Controls d'ajust fi (sliders)
+    # Seeded through session state because the preset buttons write to these sliders
+    if k("macro_nominal_slider") not in st.session_state:
+        st.session_state[k("macro_nominal_slider")] = min(15.0, max(2.0, float(scenario.nominal_return)))
+    if k("macro_inflation_slider") not in st.session_state:
+        st.session_state[k("macro_inflation_slider")] = min(8.0, max(0.5, float(scenario.inflation_rate)))
     col_nom, col_inf = st.columns(2)
     with col_nom:
         new_nom = st.slider(
             t("nominalReturnLabel", lang) + " (%)",
             min_value=2.0,
             max_value=15.0,
-            value=float(active_scenario.nominal_return),
             step=0.25,
-            key="macro_nominal_slider",
+            key=k("macro_nominal_slider"),
         )
     with col_inf:
         new_inf = st.slider(
             t("inflationLabel", lang) + " (%)",
             min_value=0.5,
             max_value=8.0,
-            value=float(active_scenario.inflation_rate),
             step=0.25,
-            key="macro_inflation_slider",
+            key=k("macro_inflation_slider"),
         )
+
+    shift = new_nom - 7.0
+    st.caption(
+        "Each asset grows at its own expected return (set in the portfolio section). "
+        f"This scenario shifts every asset's return by {shift:+.2f} pp relative to the 7% base case."
+    )
 
     if new_nom != active_scenario.nominal_return or new_inf != active_scenario.inflation_rate:
         active_scenario = MacroScenario(

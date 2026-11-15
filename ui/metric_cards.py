@@ -64,7 +64,14 @@ def render_metric_cards(
 
     # 2. TIME TO FIRE
     with col2:
-        if result.is_already_fire:
+        if not result.fire_reachable:
+            last_age = result.projections[-1].age if result.projections else 0
+            time_display = "<span style='color: #e11d48;'>Not reached</span>"
+            time_sub = (
+                f"<span style='color: #9f1239;'>With these inputs the target is not reached by age "
+                f"<strong>{last_age}</strong>. Try saving more, a lower target or a later horizon.</span>"
+            )
+        elif result.is_already_fire:
             time_display = f"<span style='color: #059669;'>{t('alreadyFire', lang)}</span>"
             time_sub = f"<span style='color: #047857;'>{t('canRetireNow', lang)}</span>"
         else:
@@ -79,6 +86,8 @@ def render_metric_cards(
             if result.tax_free_lump_sum_total > 0
             else ""
         )
+        # NOTE: optional fragments are placed inline (never alone on a line): a blank line inside
+        # the HTML block would end it and Markdown would print the rest as literal text.
 
         st.markdown(
             f"""
@@ -88,8 +97,7 @@ def render_metric_cards(
                 <div class="metric-value">{time_display}</div>
                 <div class="metric-subtitle">{time_sub}</div>
                 <div class="metric-footer" style="border-color: rgba(16, 185, 129, 0.25);">
-                    <div>{t('survivalEstimated', lang)} <strong>{result.portfolio_survival_years} {t('planYears', lang)}</strong></div>
-                    {lump_sum_html}
+                    <div>{t('survivalEstimated', lang)} <strong>{result.portfolio_survival_years} {t('planYears', lang)}</strong></div>{lump_sum_html}
                 </div>
             </div>
             """,
@@ -113,7 +121,7 @@ def render_metric_cards(
                     = {format_eur(annual_net, lang)} {t('netPerYear', lang)}
                 </div>
                 <div class="metric-footer" style="border-color: rgba(6, 182, 212, 0.25);">
-                    {t('grossWithdrawalNeeded', lang)} <strong>{format_eur(result.annual_gross_withdrawal_needed, lang)}</strong>{t('perYear', lang)}
+                    {t('grossWithdrawalNeeded', lang)} <strong>{format_eur(result.retirement_year_gross, lang)}</strong>{t('perYear', lang)}
                 </div>
             </div>
             """,
@@ -124,11 +132,14 @@ def render_metric_cards(
     with col4:
         tax_val = result.annual_tax_at_retirement
         eff_rate = result.effective_tax_rate_at_retirement * 100.0
-        status_html = (
-            f"<span style='color: #059669; font-weight: 700;'>✓ {t('sustainable', lang)}</span>"
-            if result.is_sustainable
-            else f"<span style='color: #e11d48; font-weight: 700;'>⚠ {t('depletionRisk', lang)}</span>"
-        )
+        if result.is_sustainable:
+            status_html = f"<span style='color: #059669; font-weight: 700;'>✓ {t('sustainable', lang)}</span>"
+        elif not result.fire_reachable:
+            status_html = "<span style='color: #e11d48; font-weight: 700;'>⚠ Target not reached</span>"
+        elif result.has_income_shortfall and result.final_portfolio_value > 0:
+            status_html = "<span style='color: #e11d48; font-weight: 700;'>⚠ Income gap before pensions unlock</span>"
+        else:
+            status_html = f"<span style='color: #e11d48; font-weight: 700;'>⚠ {t('depletionRisk', lang)}</span>"
 
         st.markdown(
             f"""
